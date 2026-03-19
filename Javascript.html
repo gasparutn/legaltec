@@ -1,0 +1,814 @@
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // --- Referencias a elementos del DOM ---
+    const searchInput = document.getElementById('searchInput');
+    const tableBody = document.getElementById('tableBody');
+    const tableHeadersRow = document.getElementById('tableHeaders');
+    const loadingSpinner = document.getElementById('loading');
+    const messageArea = document.getElementById('message');
+    const addButton = document.getElementById('addButton');
+    const globalActionButton = document.getElementById('globalActionButton');
+
+    const dataModal = document.getElementById('dataModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const formFields = document.getElementById('formFields');
+    const dataForm = document.getElementById('dataForm');
+    const saveButton = document.getElementById('saveButton');
+    const cancelButton = document.getElementById('cancelButton');
+    const closeButtons = document.querySelectorAll('.close-button');
+
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+    const cancelDeleteConfirmButton = document.getElementById('cancelDeleteConfirmButton');
+
+    const globalActionModal = document.getElementById('globalActionModal');
+    const globalActionSelect = document.getElementById('globalActionSelect');
+    const globalRowSelect = document.getElementById('globalRowSelect');
+    const executeGlobalActionButton = document.getElementById('executeGlobalActionButton');
+    const cancelGlobalActionButton = document.getElementById('cancelGlobalActionButton');
+
+    const btnGeneraNota = document.getElementById('btnGeneraNota');
+    const tipoNotaSelect = document.getElementById('tipoNotaSelect');
+    const sexoNotaSelect = document.getElementById('sexoNotaSelect');
+
+    let originalData = [];
+    let currentHeaders = [];
+    let hiddenHeaders = [];
+    let editingRowIdx = -1; // Índice original en la hoja/originalData
+    let auxDataMap = {};
+    let rowToDeleteIdx = -1;
+
+    // --- Variables de Paginación y Filtrado ---
+    let currentPage = 1;
+    let rowsPerPage = 10;
+    let filteredData = [];
+    const rowsPerPageSelect = document.getElementById('rowsPerPageSelect');
+    const prevPageBtn = document.getElementById('prevPageBtn');
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    const pageInfo = document.getElementById('pageInfo');
+    const rowCountInfo = document.getElementById('rowCountInfo');
+
+    const DATE_COLUMNS = ['FECHA ALTA', 'FECHA BAJA'];
+    const NUMBER_COLUMNS = []; // previously ['DNI', 'TOTAL'] -> causes HTML type="number" to wipe inputs that have formatting.
+    const SELECT_COLUMNS = {
+      'SEXO': ['', 'el Sr.', 'la Sra.'],
+      'AUTORIDAD': [
+        '', 'ADM', 'ANA', 'ASES', 'BARRO', 'CANO', 'CHAPPEL', 'DERRACHE', 'DIUMENJO',
+        'EISENCHLAS', 'FLORIDIA', 'FREIDEMBERG', 'GALIÑARES', 'GÓMEZ', 'GONZÁLEZ F.',
+        'GONZÁLEZ V.', 'IGLESIAS', 'KERCHNER', 'LAFERTE', 'LEGISLATIVA', 'MAGISTRETTI',
+        'MANONI', 'MARCOLINI', 'MARQUEZ', 'NAJUL', 'PERVIU', 'PEZZUTTI', 'PRADINES',
+        'PRINGLES', 'QUATTRINI', 'ROSTAND', 'RUS', 'SABADIN', 'SÁEZ', 'SAINZ', 'SAT',
+        'SERRA', 'SEVILLA', 'SOTO', 'VAQUER', 'VICCHI', 'VICE', 'ZLOBEC'
+      ],
+      'AUTOR': ['', 'JU', 'GA', 'NI'],
+      'CUOTA': ['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+      'TAREAS': ['', "inherentes a la función legislativa", "de asesoramiento legislativo", "de asesoramiento", "de asesoramiento afines a comisiones", "legislativas", "de asesoramiento en elaboración de proyectos", "de asesoramiento contable", "de Profesora de Braille", "administrativas en comisiones", "administrativas", "de asesoramiento comunicacional", "de asesoramiento y labor legislativo", "de asesoramiento técnico", "en oficina de Ética Pública", "de docencia en lenguaje de señas", "administrativas en la dirección de compras", "de Gestión Ciudadana en San Rafael", "de patrocinio jurídico gratuito", "de fonoaudióloga en Coro de la Legislatura Provincial", "de operatividad, programación, actualización y mantenimiento del sitio web oficial", "de asesoramiento legal y técnico", "de prevención de salud", "asesoramiento legal", "asesoramiento en comunicación y redes", "administrativas en la dirección de compras", "asesoramiento en comunicación", "de asesoramiento económico", "de asesoramiento en hábitat y vivienda", "de asistencia en prensa", "de asesoramiento administrativo", "de asesoramiento en prensa", "administrativas en prensa", "de asesoramiento jurídico", "en Coro de la Legislatura como preparadora vocal de la H. Cámara de Senadores", "en Secretaría de Comunicación Institucional y Prensa", "en Secretaría de Transporte", "de Dirección de despacho"],
+      'LOCALIDAD': ['', 'General Alvear,  Mendoza', 'Godoy Cruz, Mendoza', 'Guaymallén, Mendoza', 'Junín, Mendoza', 'La Paz, Mendoza', 'Las Heras, Mendoza', 'Lavalle, Mendoza', 'Luján de Cuyo, Mendoza', 'Maipú, Mendoza', 'Malargüe, Mendoza', 'Rivadavia, Mendoza', 'San Carlos, Mendoza', 'San Martín, Mendoza', 'San Rafael, Mendoza', 'Santa Rosa, Mendoza', 'Tunuyán, Mendoza', 'Tupungato, Mendoza', 'Capital, Mendoza'],
+      'ESTADO': ['Pendiente', 'Contrato', 'Resolución', 'Notificado']
+    };
+
+    function showMessage(msg, isError = false) {
+      if (messageArea) {
+        messageArea.textContent = msg;
+        messageArea.className = isError ? 'message-area error' : 'message-area';
+        setTimeout(() => messageArea.textContent = '', 5000);
+      }
+    }
+
+    function showModal(modalElement) {
+      if (modalElement) modalElement.style.display = 'flex';
+    }
+
+    function hideModal(modalElement) {
+      if (modalElement) modalElement.style.display = 'none';
+    }
+
+    function closeAllModals() {
+      hideModal(dataModal);
+      hideModal(confirmModal);
+      hideModal(globalActionModal);
+      dataForm.reset();
+    }
+
+    function loadData() {
+      if (loadingSpinner) loadingSpinner.style.display = 'block';
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(response => {
+            try {
+              if (!response) throw new Error('Respuesta nula.');
+              if (!response.success) throw new Error(response.message);
+              originalData = response.data || [];
+              currentHeaders = response.headers || [];
+              hiddenHeaders = response.hiddenHeaders || [];
+              originalData = response.data || [];
+              currentHeaders = response.headers || [];
+              hiddenHeaders = response.hiddenHeaders || [];
+
+              // No aplicar filtro, mostrar todos los datos inicialmente
+              filteredData = [...originalData];
+
+              updatePaginationControls();
+              renderTable(currentHeaders, filteredData);
+            } catch (e) {
+              showMessage('Error: ' + e.message, true);
+            } finally {
+              if (loadingSpinner) loadingSpinner.style.display = 'none';
+            }
+          })
+          .withFailureHandler(error => {
+            showMessage('Error al cargar: ' + error.message, true);
+            if (loadingSpinner) loadingSpinner.style.display = 'none';
+          })
+          .getData();
+      }
+    }
+
+    function updatePaginationControls() {
+      const totalRows = filteredData.length;
+      const totalPages = rowsPerPage === 'all' ? 1 : Math.ceil(totalRows / rowsPerPage);
+
+      if (currentPage > totalPages) currentPage = totalPages || 1;
+
+      pageInfo.textContent = `Página ${currentPage} de ${totalPages || 1}`;
+      prevPageBtn.disabled = currentPage === 1;
+      nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
+      rowCountInfo.textContent = `(Total: ${totalRows} registros)`;
+    }
+
+    function renderTable(headers, data) {
+      if (!tableHeadersRow || !tableBody) return;
+      tableHeadersRow.innerHTML = '';
+      tableBody.innerHTML = '';
+
+      // Actualizar encabezados
+      headers.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h || '';
+        tableHeadersRow.appendChild(th);
+      });
+
+      // Paginación de los datos a mostrar
+      let dataToShow = data;
+      if (rowsPerPage !== 'all') {
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + parseInt(rowsPerPage);
+        dataToShow = data.slice(start, end);
+      }
+
+      const bodyFragment = document.createDocumentFragment();
+      dataToShow.forEach((rowData) => {
+        // rowData: [...visibles, '', ...ocultas, originalIdx]
+        const originalIdxIndex = headers.length + hiddenHeaders.length;
+        const originalIdx = rowData[originalIdxIndex];
+
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', (e) => {
+          if (e.target.closest('.option-button') || e.target.closest('.action-checkbox')) return;
+          toggleRowExpansion(tr, rowData);
+        });
+
+        for (let i = 0; i < headers.length; i++) {
+          const cellData = rowData[i];
+          const hName = headers[i] || '';
+          const td = document.createElement('td');
+
+          if (hName === 'CHECK') {
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'action-checkbox';
+            cb.checked = cellData === true;
+            cb.dataset.originalIdx = originalIdx;
+            cb.title = cb.checked ? 'Tildado (procesado). Click para destilar y habilitar acción.' : 'Destildado. Se procesará al ejecutar una acción.';
+            // Guardar el cambio en el Sheet cuando el usuario tilda/destilda
+            cb.addEventListener('change', function () {
+              const idx = parseInt(this.dataset.originalIdx);
+              const nuevoValor = this.checked;
+              this.disabled = true;
+              this.style.opacity = '0.5';
+              const self = this;
+              google.script.run
+                .withSuccessHandler(() => {
+                  self.disabled = false;
+                  self.style.opacity = '1';
+                  self.title = nuevoValor ? 'Tildado (procesado). Click para destilar y habilitar acción.' : 'Destildado. Se procesará al ejecutar una acción.';
+                  showMessage(nuevoValor ? 'Fila marcada como procesada.' : 'Fila habilitada para procesar.');
+                  // Actualizar originalData en memoria para que rowsToProcess refleje el cambio
+                  const checkIdx = currentHeaders.indexOf('CHECK');
+                  const originalIdxIndex = currentHeaders.length + hiddenHeaders.length;
+                  const fila = originalData.find(r => r[originalIdxIndex] === idx);
+                  if (fila && checkIdx >= 0) fila[checkIdx] = nuevoValor;
+                })
+                .withFailureHandler(err => {
+                  self.checked = !nuevoValor; // revertir visualmente
+                  self.disabled = false;
+                  self.style.opacity = '1';
+                  showMessage('Error al guardar estado: ' + err.message, true);
+                })
+                .updateCheckValue(idx, nuevoValor);
+            });
+            td.appendChild(cb);
+            td.style.textAlign = 'center';
+          } else if (hName === 'OPC') {
+            const btnW = createOptBtn('W', 'preview-word', 'Previsualizar Contrato', () => handlePreviewFile(rowData, 'CONTRATO'));
+            const btnT = createOptBtn('📄', 'preview-txt', 'Previsualizar Resolución', () => handlePreviewFile(rowData, 'RESOLUCION'));
+            const btnE = createOptBtn('&#9998;', 'edit', 'Editar', (e) => handleEditClick(originalIdx));
+            const btnD = createOptBtn('&#128465;', 'delete', 'Eliminar', () => handleDeleteClick(originalIdx));
+
+            td.appendChild(btnW); td.appendChild(btnT); td.appendChild(btnE); td.appendChild(btnD);
+            td.style.minWidth = '140px';
+          } else if (hName === 'ESTADO') {
+            td.textContent = cellData;
+            if (cellData) {
+              // Normalizar quitando acentos para que coincida con el CSS (.status-resolucion)
+              let normalized = String(cellData).toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+              let cls = 'status-' + normalized.replace(/\s+/g, '-');
+              if (cellData.startsWith('Proceso')) cls = 'status-proceso';
+              td.classList.add(cls);
+            }
+          } else {
+            td.textContent = cellData;
+          }
+          tr.appendChild(td);
+        }
+        bodyFragment.appendChild(tr);
+      });
+      tableBody.appendChild(bodyFragment);
+    }
+
+    function createOptBtn(html, cls, title, onClick) {
+      const b = document.createElement('button');
+      b.className = 'option-button ' + cls;
+      b.innerHTML = html;
+      b.title = title;
+      b.addEventListener('click', (e) => { e.stopPropagation(); onClick(e); });
+      return b;
+    }
+
+    function toggleRowExpansion(tr, rowData) {
+      const next = tr.nextElementSibling;
+      if (next && next.classList.contains('detail-row')) {
+        next.remove();
+        tr.classList.remove('expanded');
+      } else {
+        const detailTr = document.createElement('tr');
+        detailTr.className = 'detail-row';
+        const detailTd = document.createElement('td');
+        detailTd.colSpan = currentHeaders.length;
+        const detailContent = document.createElement('div');
+        detailContent.className = 'detail-content';
+
+        hiddenHeaders.forEach((label, i) => {
+          // El offset es currentHeaders.length porque el index 12 es OPC
+          const val = rowData[currentHeaders.length + i];
+          if (val !== undefined && val !== '') {
+            const item = document.createElement('div');
+            item.className = 'detail-item';
+            item.innerHTML = `<span class="label">${label}: </span><span class="value">${val}</span>`;
+            detailContent.appendChild(item);
+          }
+        });
+
+        detailTd.appendChild(detailContent);
+        detailTr.appendChild(detailTd);
+        tr.after(detailTr);
+        tr.classList.add('expanded');
+      }
+    }
+
+    searchInput.onkeyup = () => {
+      const term = searchInput.value.toLowerCase();
+      filteredData = originalData.filter(r => r.some(c => String(c).toLowerCase().includes(term)));
+      currentPage = 1;
+      updatePaginationControls();
+      renderTable(currentHeaders, filteredData);
+    };
+
+    // --- Listeners de Paginación ---
+    rowsPerPageSelect.onchange = () => {
+      rowsPerPage = rowsPerPageSelect.value === 'all' ? 'all' : parseInt(rowsPerPageSelect.value);
+      currentPage = 1;
+      updatePaginationControls();
+      renderTable(currentHeaders, filteredData);
+    };
+
+    prevPageBtn.onclick = () => {
+      if (currentPage > 1) {
+        currentPage--;
+        updatePaginationControls();
+        renderTable(currentHeaders, filteredData);
+        document.querySelector('.table-container').scrollTop = 0;
+      }
+    };
+
+    nextPageBtn.onclick = () => {
+      const totalPages = rowsPerPage === 'all' ? 1 : Math.ceil(filteredData.length / rowsPerPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        updatePaginationControls();
+        renderTable(currentHeaders, filteredData);
+        document.querySelector('.table-container').scrollTop = 0;
+      }
+    };
+
+    addButton.onclick = () => {
+      editingRowIdx = -1;
+      modalTitle.textContent = 'Agregar Registro/Crear Notas';
+      if (tipoNotaSelect) tipoNotaSelect.value = '';
+      if (sexoNotaSelect) sexoNotaSelect.value = '';
+      generateFormFields({});
+      showModal(dataModal);
+      // Cuando se cambia el tipo de nota, actualizar campos visibles
+      if (tipoNotaSelect) {
+        tipoNotaSelect.onchange = () => applyNotaFieldVisibility(tipoNotaSelect.value);
+      }
+    };
+
+    globalActionButton.onclick = openGlobalActionModal;
+    closeButtons.forEach(b => b.onclick = (e) => hideModal(document.getElementById(e.target.dataset.modal)));
+    cancelButton.onclick = closeAllModals;
+    cancelDeleteConfirmButton.onclick = closeAllModals;
+    cancelGlobalActionButton.onclick = () => {
+      resetGlobalActionModal();
+      closeAllModals();
+    };
+
+    dataForm.onsubmit = (e) => {
+      e.preventDefault();
+      const fd = getFormData();
+      saveButton.disabled = true;
+      saveButton.textContent = 'Guardando...';
+      const run = google.script.run
+        .withSuccessHandler(r => {
+          saveButton.disabled = false; saveButton.textContent = 'Guardar';
+          if (r.success) { showMessage(r.message); closeAllModals(); loadData(); } else showMessage(r.message, true);
+        })
+        .withFailureHandler(err => {
+          saveButton.disabled = false; saveButton.textContent = 'Guardar';
+          showMessage(err.message, true);
+        });
+      if (editingRowIdx === -1) run.addRow(fd);
+      else run.updateRow(editingRowIdx, fd);
+    };
+
+    if (btnGeneraNota) {
+      btnGeneraNota.onclick = () => {
+        const tipoNota = tipoNotaSelect.value;
+        if (!tipoNota) {
+          alert('Seleccione un Tipo de Nota.');
+          return;
+        }
+
+        const fd = getFormData();
+        fd['TIPO_NOTA_SELECT'] = tipoNota;
+        // SEXO ahora viene del campo dinámico del form (mismo row que AUTOR y AUTORIDAD)
+        const sexoVal = fd['SEXO'] || '';
+        fd['SEXO_NOTA_SELECT'] = sexoVal;
+        const autoridadVal = fd['AUTORIDAD'] || '';
+
+        // Limpiar bordes rojos anteriores
+        document.querySelectorAll('#dataForm input, #dataForm select').forEach(el => el.style.border = '');
+
+        let required = [];
+        let requiereSexo = false;
+        const autoridad = autoridadVal;
+
+        // Validar combinaciones permitidas de tipo de nota + autoridad
+        if (tipoNota === 'Nota Alta Senado') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Nota Alta Senado, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'TOTAL', 'CUOTA', 'TAREAS', 'FECHA ALTA'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Nota Alta Vice') {
+          if (autoridad !== 'ADM') {
+            return alert('Vicegobernación debe pedir a Secretaría Administrativa una Nota Alta Vice únicamente, elija la opción "ADM" de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'TOTAL', 'CUOTA', 'TAREAS', 'FECHA ALTA'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Nota Baja Senado') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Nota Baja Senado, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'REQ'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Nota Baja Vice') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Nota Baja Vice, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'REQ'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Prórroga Senado') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Prórroga Senado, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CUOTA'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Prórroga Vice') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Prórroga Vice, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CUOTA'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Nota DDJJ') {
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CORREO LOCADOR'];
+          requiereSexo = false;
+        }
+
+        if (requiereSexo && !sexoVal) {
+          const sexoInput = document.getElementById('SEXO');
+          if (sexoInput) sexoInput.style.border = '2px solid red';
+          return alert('Seleccione el sexo para la nota.');
+        }
+
+        let missing = [];
+        required.forEach(req => {
+          if (!fd[req] || String(fd[req]).trim() === '') {
+            missing.push(req);
+            const inputEl = document.getElementById(req);
+            if (inputEl) inputEl.style.border = '2px solid red';
+          }
+        });
+
+        if (missing.length > 0) {
+          alert('Faltan datos requeridos:\n' + missing.join(', '));
+          return;
+        }
+
+        btnGeneraNota.disabled = true;
+        btnGeneraNota.textContent = 'Generando...';
+
+        google.script.run
+          .withSuccessHandler(r => {
+            btnGeneraNota.disabled = false;
+            btnGeneraNota.textContent = 'Genera Nota';
+            if (r.success) {
+              alert(r.message);
+              // closeAllModals(); // Opcional, si queremos que se cierre luego de generar
+            } else {
+              alert(r.message);
+            }
+          })
+          .withFailureHandler(e => {
+            btnGeneraNota.disabled = false;
+            btnGeneraNota.textContent = 'Genera Nota';
+            alert('Error al conectar: ' + e.message);
+          })
+          .generarNotaDesdeModal(fd);
+      };
+    }
+
+    function generateFormFields(rowData) {
+      formFields.innerHTML = '';
+      const EXCLUDED = ['Id', 'ID', 'CheckBox', 'OPC', 'ACCION', 'CHECK', 'FECHA NOTIFICA'];
+      const allHeaders = [...currentHeaders, ...hiddenHeaders];
+      const editable = allHeaders.filter(h => !EXCLUDED.includes(h) && (h !== 'ESTADO' || editingRowIdx !== -1));
+
+      const row1Data = ['SEXO', 'AUTORIDAD', 'AUTOR'];
+      const row2Data = ['DNI', 'NOMBRES', 'APELLIDOS'];
+      const row1Ctr = document.createElement('div'); row1Ctr.className = 'form-row-3col';
+      const row2Ctr = document.createElement('div'); row2Ctr.className = 'form-row-3col';
+
+      const fieldDivs = {};
+      editable.forEach(h => {
+        const div = document.createElement('div'); div.className = 'form-group';
+        div.innerHTML = `<label for="${h}">${h}:</label>`;
+        let input;
+        if (SELECT_COLUMNS[h]) {
+          input = document.createElement('select');
+          SELECT_COLUMNS[h].forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; input.appendChild(o); });
+          if (h === 'AUTORIDAD') input.onchange = () => {
+            const info = auxDataMap[input.value] || { secretario: '', correoSecretario: '' };
+            const secInput = document.getElementById('SECRETARIO');
+            const mailInput = document.getElementById('CORREO SECRETARIO');
+            if (secInput) secInput.value = info.secretario;
+            if (mailInput) mailInput.value = info.correoSecretario;
+            document.getElementById('hidden_SEC').value = info.secretario;
+            document.getElementById('hidden_MAIL').value = info.correoSecretario;
+          };
+        } else {
+          input = document.createElement('input');
+          input.type = DATE_COLUMNS.includes(h) ? 'date' : (NUMBER_COLUMNS.includes(h) ? 'number' : 'text');
+        }
+        input.id = h; input.name = h;
+        if (rowData[h] !== undefined) {
+          if (SELECT_COLUMNS[h]) {
+            const valStr = String(rowData[h]);
+            const valToMatch = valStr.trim().toLowerCase();
+            let matched = false;
+            Array.from(input.options).forEach(opt => {
+              if (opt.value.trim().toLowerCase() === valToMatch) {
+                opt.selected = true;
+                matched = true;
+              }
+            });
+            if (!matched && valStr.trim() !== '' && valStr !== 'undefined') {
+              const customOpt = document.createElement('option');
+              customOpt.value = valStr;
+              customOpt.textContent = valStr;
+              customOpt.selected = true;
+              input.appendChild(customOpt);
+            }
+          } else {
+            let finalVal = rowData[h];
+            if (DATE_COLUMNS.includes(h) && finalVal) {
+              const strVal = String(finalVal).trim();
+              if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+                const p = strVal.split('/');
+                finalVal = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+              } else if (strVal.includes('T')) {
+                finalVal = strVal.split('T')[0];
+              }
+            }
+            input.value = finalVal;
+            if (input.type === 'date' && !input.value && finalVal) {
+              input.type = 'text';
+              input.value = finalVal;
+            }
+          }
+        }
+        div.appendChild(input);
+        fieldDivs[h] = div;
+      });
+
+      row1Data.forEach(h => { if (fieldDivs[h]) row1Ctr.appendChild(fieldDivs[h]); });
+      row2Data.forEach(h => { if (fieldDivs[h]) row2Ctr.appendChild(fieldDivs[h]); });
+      editable.forEach(h => {
+        if (!row1Data.includes(h) && !row2Data.includes(h) && fieldDivs[h]) {
+          formFields.appendChild(fieldDivs[h]);
+        }
+      });
+      formFields.prepend(row2Ctr); formFields.prepend(row1Ctr);
+
+      const s = document.createElement('input'); s.type = 'hidden'; s.id = 'hidden_SEC'; s.value = rowData['SECRETARIO'] || ''; formFields.appendChild(s);
+      const m = document.createElement('input'); m.type = 'hidden'; m.id = 'hidden_MAIL'; m.value = rowData['CORREO SECRETARIO'] || ''; formFields.appendChild(m);
+
+      // Aplicar visibilidad según tipo de nota al abrir el modal
+      applyNotaFieldVisibility(tipoNotaSelect ? tipoNotaSelect.value : '');
+    }
+
+    // Campos que se deben mostrar según el tipo de nota seleccionado
+    const CAMPOS_POR_NOTA = {
+      'Nota Alta Senado': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'TOTAL', 'CUOTA', 'TAREAS', 'FECHA ALTA', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Nota Alta Vice': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'TOTAL', 'CUOTA', 'TAREAS', 'FECHA ALTA', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Nota Baja Senado': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'REQ', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Nota Baja Vice': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'REQ', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Prórroga Senado': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CUOTA', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Prórroga Vice': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CUOTA', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Nota DDJJ': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CORREO LOCADOR', 'AUTOR', 'ESTADO'],
+    };
+
+    function applyNotaFieldVisibility(tipoNota) {
+      const campos = CAMPOS_POR_NOTA[tipoNota];
+      // Sin selecισn: mostrar todo
+      formFields.querySelectorAll('.form-group').forEach(div => {
+        const input = div.querySelector('input, select, textarea');
+        if (!input || !input.name) return;
+        if (!campos) {
+          div.style.display = '';
+        } else {
+          div.style.display = campos.includes(input.name) ? '' : 'none';
+        }
+      });
+      // Ocultar contenedores de fila (form-row-2col / form-row-3col) si todos sus hijos están ocultos
+      formFields.querySelectorAll('.form-row-2col, .form-row-3col').forEach(row => {
+        const allHidden = Array.from(row.querySelectorAll('.form-group')).every(d => d.style.display === 'none');
+        row.style.display = allHidden ? 'none' : '';
+      });
+    }
+
+    function getFormData() {
+      const fd = {};
+      formFields.querySelectorAll('input, select').forEach(i => { if (i.name) fd[i.name] = i.value; });
+      if (editingRowIdx === -1) { fd['CHECK'] = true; fd['ESTADO'] = 'Pendiente'; }
+
+      // Si el modal no generó inputs visibles para Secretario/Correo (ej: por estar excluidos), usar los hidden_SEC/MAIL como fallback
+      if (fd['SECRETARIO'] === undefined) {
+        fd['SECRETARIO'] = document.getElementById('hidden_SEC') ? document.getElementById('hidden_SEC').value : '';
+      }
+      if (fd['CORREO SECRETARIO'] === undefined) {
+        fd['CORREO SECRETARIO'] = document.getElementById('hidden_MAIL') ? document.getElementById('hidden_MAIL').value : '';
+      }
+      return fd;
+    }
+
+    function handleEditClick(originalIdx) {
+      editingRowIdx = originalIdx;
+      modalTitle.textContent = 'Editar Registro';
+      if (tipoNotaSelect) tipoNotaSelect.value = '';
+      if (sexoNotaSelect) sexoNotaSelect.value = '';
+      const row = originalData.find(r => r[currentHeaders.length + hiddenHeaders.length] === originalIdx);
+      if (!row) return;
+
+      const obj = {};
+      const hs = [...currentHeaders, ...hiddenHeaders];
+      hs.forEach((h, i) => obj[h] = row[i]);
+      generateFormFields(obj);
+      showModal(dataModal);
+    }
+
+    function handleDeleteClick(originalIdx) {
+      rowToDeleteIdx = originalIdx;
+      showModal(confirmModal);
+    }
+
+    function handlePreviewFile(rowData, type) {
+      const obj = {};
+      [...currentHeaders, ...hiddenHeaders].forEach((h, i) => obj[h] = rowData[i]);
+      showMessage('Buscando archivo...');
+
+      // Abrir la pestaña de forma síncrona aquí evita que el navegador la bloquee por ser un "popup" asíncrono
+      const previewWindow = window.open('', '_blank');
+      if (previewWindow) {
+        previewWindow.document.write('Cargando previsualización, por favor espere...');
+      }
+
+      google.script.run
+        .withSuccessHandler(r => {
+          if (r.success) {
+            if (previewWindow) {
+              previewWindow.location.href = r.url;
+            } else {
+              window.open(r.url, '_blank'); // fallback
+            }
+          } else {
+            if (previewWindow) previewWindow.close();
+            showMessage(r.message, true);
+          }
+        })
+        .withFailureHandler(e => {
+          if (previewWindow) previewWindow.close();
+          showMessage('Error al conectar: ' + e.message, true);
+        })
+        .getFilePreviewUrl(obj, type);
+    }
+
+    confirmDeleteButton.onclick = () => {
+      google.script.run.withSuccessHandler(r => { if (r.success) { showMessage(r.message); closeAllModals(); loadData(); } else showMessage(r.message, true); }).deleteRow(rowToDeleteIdx);
+    };
+
+    function resetGlobalActionModal() {
+      // Resetear estado del modal sin mostrarlo
+      const actionContainer = document.getElementById('actionSelectionContainer');
+      const progressContainer = document.getElementById('progressDisplay');
+      const resultContainer = document.getElementById('resultDisplay');
+
+      if (actionContainer) actionContainer.style.display = 'block';
+      if (progressContainer) progressContainer.style.display = 'none';
+      if (resultContainer) resultContainer.style.display = 'none';
+
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('progressPercent').textContent = '0%';
+      document.getElementById('progressStatus').textContent = 'Preparando...';
+      document.getElementById('executeGlobalActionButton').disabled = false;
+      document.getElementById('executeGlobalActionButton').style.opacity = '1';
+      document.getElementById('cancelGlobalActionButton').textContent = 'Cancelar';
+      document.getElementById('cancelGlobalActionButton').style.display = 'block';
+    }
+
+    function openGlobalActionModal() {
+      resetGlobalActionModal();
+
+      if (globalActionSelect.options.length <= 1) {
+        ['Contrato', 'Resolución', 'Baja', 'Notificación'].forEach(v => {
+          const opt = document.createElement('option'); opt.value = v; opt.textContent = v; globalActionSelect.appendChild(opt);
+        });
+      }
+      showModal(globalActionModal);
+    }
+
+    let isRunning = false; // Flag para evitar ejecuciones concurrentes
+
+    executeGlobalActionButton.onclick = async () => {
+      if (isRunning) return; // Evitar doble click
+      const type = globalActionSelect.value;
+      if (!type) return showMessage('Selecciona acción', true);
+
+      // Encontrar índices a procesar (CHECK destildado)
+      const checkIdx = currentHeaders.indexOf('CHECK');
+      const rowsToProcess = originalData.filter(row => {
+        const val = row[checkIdx];
+        return (val === false || val === '' || val === null || val === undefined || val === 'FALSE');
+      });
+
+      if (rowsToProcess.length === 0) {
+        alert("No hay registros seleccionados para procesar. Por favor, DESMARCA (destilda) la casilla 'CHECK' de las filas que deseas procesar y luego usa este botón.");
+        return showMessage("No hay registros sin procesar (CHECK destildado).", true);
+      }
+
+      // Validación para el campo REQ en caso de acción "Baja" o "Resolución"
+      if (type === 'Baja' || type === 'Resolución') {
+        const allHeaders = [...currentHeaders, ...hiddenHeaders]; 
+        const reqIdx = allHeaders.indexOf('REQ');
+        if (reqIdx !== -1) {
+          const rowsMissingReq = rowsToProcess.filter(row => !row[reqIdx] || String(row[reqIdx]).trim() === '');
+          if (rowsMissingReq.length > 0) {
+            alert(`No se puede procesar la acción "${type}" porque hay ${rowsMissingReq.length} registro(s) que no tienen el número de REQUERIMIENTO (REQ).`);
+            return;
+          }
+        }
+      }
+
+      // Preparar UI del modal para progreso
+      const actionSelectionContainer = document.getElementById('actionSelectionContainer');
+      const progressDisplay = document.getElementById('progressDisplay');
+      const progressBar = document.getElementById('progressBar');
+      const progressStatus = document.getElementById('progressStatus');
+      const progressPercent = document.getElementById('progressPercent');
+
+      // Limpiar resultados previos
+      let resultDisplay = document.getElementById('resultDisplay');
+      if (resultDisplay) resultDisplay.style.display = 'none';
+
+      isRunning = true;
+      actionSelectionContainer.style.display = 'none';
+      progressDisplay.style.display = 'block';
+      executeGlobalActionButton.disabled = true;
+      executeGlobalActionButton.style.opacity = '0.5';
+      cancelGlobalActionButton.style.display = 'none';
+
+      let successCount = 0;
+      let errorCount = 0;
+      let errorsDetails = [];
+      const total = rowsToProcess.length;
+
+      for (let i = 0; i < total; i++) {
+        const row = rowsToProcess[i];
+        const originalIdx = row[currentHeaders.length + hiddenHeaders.length];
+        const rowName = row[3] + " " + row[2]; // NOMBRES APELLIDOS
+
+        progressStatus.textContent = `Procesando (${i + 1}/${total}): ${rowName}`;
+
+        try {
+          // Llamada individual para cada fila
+          const result = await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .executeAction(originalIdx, type);
+          });
+
+          if (result.success) {
+            successCount++;
+          } else {
+            errorCount++;
+            errorsDetails.push("<b>" + rowName + ":</b> " + (result.message || "Error crítico desconocido"));
+          }
+        } catch (err) {
+          console.error(`Error en fila ${originalIdx}:`, err);
+          errorCount++;
+          errorsDetails.push("<b>" + rowName + ":</b> Excepción de red/Apps Script - " + (err.message || 'Desconocido'));
+        }
+
+        // Actualizar barra de progreso
+        const percent = Math.round(((i + 1) / total) * 100);
+        progressBar.style.width = percent + '%';
+        progressPercent.textContent = percent + '%';
+      }
+
+      // Finalizar: mostrar resultados y boton Cerrar
+      isRunning = false;
+      resultDisplay = document.getElementById('resultDisplay');
+      document.getElementById('successCountText').textContent = successCount;
+      document.getElementById('errorCountText').textContent = errorCount;
+
+      // Mostrar lista de errores
+      let errorDetailsContainer = document.getElementById('errorDetailsContainer');
+      if (!errorDetailsContainer) {
+        errorDetailsContainer = document.createElement('div');
+        errorDetailsContainer.id = 'errorDetailsContainer';
+        errorDetailsContainer.style.marginTop = '10px';
+        errorDetailsContainer.style.maxHeight = '150px';
+        errorDetailsContainer.style.overflowY = 'auto';
+        errorDetailsContainer.style.color = '#b91c1c'; // Rojo más oscuro
+        errorDetailsContainer.style.fontSize = '0.75rem';
+        errorDetailsContainer.style.borderTop = '1px solid #e2e8f0';
+        errorDetailsContainer.style.paddingTop = '5px';
+        resultDisplay.appendChild(errorDetailsContainer);
+      }
+
+      if (errorsDetails.length > 0) {
+        errorDetailsContainer.innerHTML = '<strong>Detalle de Errores:</strong><br/>' + errorsDetails.join('<br/><br/>');
+        errorDetailsContainer.style.display = 'block';
+      } else {
+        errorDetailsContainer.style.display = 'none';
+      }
+
+      resultDisplay.style.display = 'block';
+
+      progressStatus.textContent = '¡Completado!';
+
+      // El botón "Cerrar" resetea el modal y cierra
+      cancelGlobalActionButton.textContent = 'Cerrar';
+      cancelGlobalActionButton.style.display = 'block';
+
+      // Recargar datos de la tabla
+      loadData();
+    };
+
+    loadData();
+    google.script.run.withSuccessHandler(r => { if (r.success) auxDataMap = r.data; }).getAuxData();
+  });
+</script>
