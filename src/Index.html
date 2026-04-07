@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top">
+  <?!= include('Stylesheet'); ?>
+</head>
+
+<body>
+  <div class="header">
+    <h1 class="title">LOCACIONES</h1>
+    <div class="controls">
+      <button id="addButton" class="add-button">+ Agregar</button>
+      <button id="globalActionButton" class="add-button">GENERAR</button>
+      <button id="goToNotificationsButton" class="add-button">CONTROL DOCUS</button>
+      <button onclick="localStorage.clear(); window.top.location.href='<?= appUrl ?>';" class="add-button" style="background-color:#ef4444;">SALIR 🚪</button>
+    </div>
+    <div class="secondary-controls">
+      <div class="search-wrapper">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Buscar registros..." class="search-input">
+        <span id="syncIndicator" style="font-size: 10px; color: #94a3b8; margin-left: 10px; min-width: 80px;">Sincronizando...</span>
+      </div>
+      <div class="period-selector">
+        <span class="period-label">PERIODO:</span>
+        <select id="anioSelect"></select>
+        <select id="mesSelect">
+          <option value="all">Todo el año</option>
+          <option value="recent">Recientes (2 m)</option>
+          <option value="0">Enero</option>
+          <option value="1">Febrero</option>
+          <option value="2">Marzo</option>
+          <option value="3">Abril</option>
+          <option value="4">Mayo</option>
+          <option value="5">Junio</option>
+          <option value="6">Julio</option>
+          <option value="7">Agosto</option>
+          <option value="8">Septiembre</option>
+          <option value="9">Octubre</option>
+          <option value="10">Noviembre</option>
+          <option value="11">Diciembre</option>
+        </select>
+      </div>
+      <div class="drive-shortcuts">
+        <span class="shortcuts-label">CARPETAS DRIVE:</span>
+        <a href="https://drive.google.com/drive/folders/1VSUCCdVo2-lVG-h-pp89Q93_GtcJQxTq" target="_blank"
+          class="shortcut-link">📁 Notas</a>
+        <a href="https://drive.google.com/drive/folders/1vN_YjSEsItkISD_Wshs8rLtF2zcFdu-D" target="_blank"
+          class="shortcut-link">📁 Documentación</a>
+        <a href="https://drive.google.com/drive/folders/1dzgGiiHyzTUy7UwZOZUNh09Il-2s2PsB" target="_blank"
+          class="shortcut-link">📁 Contratos</a>
+        <a href="https://drive.google.com/drive/folders/1dzu8Kh84uX5TpPFW6xIp3-bkHaUpAiZA" target="_blank"
+          class="shortcut-link">📁 Resoluciones</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table id="dataTable" class="data-table">
+      <thead>
+        <tr id="tableHeaders">
+          <!-- Los encabezados se cargarán aquí por JavaScript -->
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <!-- Los datos se cargarán aquí por JavaScript -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Controls -->
+  <div id="paginationContainer" class="pagination-container">
+    <div class="pagination-info">
+      <span>Mostrar:</span>
+      <select id="rowsPerPageSelect" class="rows-select">
+        <option value="10" selected>10</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+        <option value="500">500</option>
+        <option value="all">Todas</option>
+      </select>
+      <span id="rowCountInfo"></span>
+    </div>
+    <div class="pagination-controls">
+      <button id="prevPageBtn" class="page-btn" title="Página Anterior">&laquo;</button>
+      <span id="pageInfo" class="page-info">Página 1 de 1</span>
+      <button id="nextPageBtn" class="page-btn" title="Página Siguiente">&raquo;</button>
+    </div>
+  </div>
+
+  <div id="loading" class="loading-spinner" style="display: none;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 15px;">
+      <div class="elegant-spinner"></div>
+      <span style="font-weight: 600; letter-spacing: 1px; color: var(--text-primary);">OBTENIENDO REGISTROS...</span>
+    </div>
+  </div>
+  <div id="message" class="message-area"></div>
+
+  <!-- Modal para Agregar/Editar Registro -->
+  <div id="dataModal" class="modal">
+    <div class="modal-content">
+      <div class="form-header">
+        <h2 id="modalTitle">Agregar Registro/Crear Notas</h2>
+        <span class="close-button" data-modal="dataModal">&times;</span>
+      </div>
+      <form id="dataForm" class="form-body">
+        <!-- Fila 1: TIPO DE NOTA (fila independiente) -->
+        <div class="form-row-single">
+          <div class="form-group w-tipo-nota">
+            <label for="tipoNotaSelect">TIPO DE NOTA:</label>
+            <select id="tipoNotaSelect">
+              <option value="" selected>Seleccionar...</option>
+              <option value="Nota Alta Senado">Nota Alta Senado</option>
+              <option value="Nota Alta Vice">Nota Alta Vice</option>
+              <option value="Nota Baja Senado">Nota Baja Senado</option>
+              <option value="Nota Baja Vice">Nota Baja Vice</option>
+              <option value="Prórroga Senado">Prórroga Senado</option>
+              <option value="Prórroga Vice">Prórroga Vice</option>
+              <option value="Nota DDJJ">Nota DDJJ</option>
+            </select>
+          </div>
+        </div>
+        <select id="sexoNotaSelect" style="display:none;"></select>
+
+        <!-- Los campos del formulario se generarán dinámicamente por JavaScript -->
+        <div id="formFields"></div>
+        
+        <!-- Hidden inputs para SECRETARIO y CORREO SECRETARIO -->
+        <input type="hidden" id="hidden_SECRETARIO" name="SECRETARIO" value="">
+        <input type="hidden" id="hidden_CORREO_SECRETARIO" name="CORREO SECRETARIO" value="">
+        
+        <!-- Footer con archivo y botones -->
+        <div class="form-footer">
+          <div class="file-upload">
+            <label for="notaPdfFile">NOTA PDF:</label>
+            <input type="file" id="notaPdfFile" accept=".pdf" />
+          </div>
+          <div class="footer-buttons">
+            <button type="submit" id="saveButton" class="btn btn-primary">Guardar</button>
+            <button type="button" id="cancelButton" class="btn btn-secondary">Cancelar</button>
+            <button type="button" id="btnRenovarContrato" class="btn btn-primary" style="display: none;">Renovar</button>
+            <button type="button" id="btnGeneraNota" class="btn btn-success">Genera Nota</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal para Confirmación de Eliminación -->
+  <div id="confirmModal" class="modal">
+    <div class="modal-content small-modal">
+      <div class="delete-icon-container">
+        <svg viewBox="0 0 24 24" width="70" height="70" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          <line x1="10" y1="11" x2="10" y2="17"></line>
+          <line x1="14" y1="11" x2="14" y2="17"></line>
+        </svg>
+      </div>
+      <h2>¿Deseas eliminar este registro?</h2>
+      <p style="color: #64748b; margin-bottom: 25px;">Esta acción no se puede deshacer y el registro será borrado de la base de datos.</p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button id="confirmDeleteButton" class="delete-button" style="padding: 12px 24px; font-weight: 600;">Sí, eliminar</button>
+        <button id="cancelDeleteConfirmButton" class="cancel-button" style="padding: 12px 24px;">No, cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="globalActionModal" class="modal">
+    <div class="modal-content small-modal">
+      <span class="close-button" data-modal="globalActionModal">&times;</span>
+      <h2>GENERAR</h2>
+      <div id="actionSelectionContainer">
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label for="globalActionSelect">Seleccionar Acción:</label>
+          <select id="globalActionSelect" class="action-dropdown" style="padding: 8px;"></select>
+        </div>
+        <button id="executeGlobalActionButton" class="execute-button">Ejecutar</button>
+      </div>
+
+      <!-- Contenedor de progreso (oculto por defecto) -->
+      <div id="progressDisplay" style="display: none; width: 100%;">
+        <p class="progress-text" id="progressStatus">Preparando...</p>
+        <div class="progress-container" id="progressBarContainer" style="display: block;">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <p id="progressPercent" style="font-size: 0.75rem; color: #10b981; font-weight: bold; margin-top: 5px;">0%</p>
+      </div>
+
+      <!-- Contenedor de resultado (oculto por defecto) -->
+      <div id="resultDisplay"
+        style="display: none; width: 100%; text-align: left; margin-top: 15px; font-size: 0.85rem; color: #334155; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0; box-sizing: border-box;">
+        <p style="margin: 0 0 5px 0;"><b>Proceso finalizado</b></p>
+        <p style="margin: 0; color: #10b981;">Correctos: <b id="successCountText">0</b></p>
+        <p style="margin: 0; color: #ef4444;">Errores: <b id="errorCountText">0</b></p>
+      </div>
+
+      <button type="button" id="cancelGlobalActionButton" class="cancel-button"
+        style="margin-top: 10px; width: 100%;">Cancelar</button>
+    </div>
+  </div>
+
+  <?!= include('Javascript'); ?>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const goToNotificationsButton = document.getElementById('goToNotificationsButton');
+      if (goToNotificationsButton) {
+        goToNotificationsButton.addEventListener('click', () => {
+          google.script.run.logControlDocusAccess();
+          window.top.location.href = '<?= appUrl ?>?page=PanelSupervisor';
+        });
+      }
+    });
+  </script>
+</body>
+
+</html>

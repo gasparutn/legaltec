@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control Documentación — Panel Supervisor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0f172a;
+      --bg-panel: #1e293b;
+      --bg-panel-alt: rgba(255, 255, 255, 0.03);
+      --border: rgba(255, 255, 255, 0.1);
+      --text-main: #f1f5f9;
+      --text-muto: #94a3b8;
+      --accent-p: #8b5cf6;
+      --accent-s: #10b981;
+      --accent-r: #ef4444;
+      --accent-b: #3b82f6;
+    }
+
+    /* ── Estilos Generales ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(--text-main); 
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden; 
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px; flex-shrink: 0;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header h1 { font-size: 1.1rem; font-weight: 700; }
+    .badge-sup { font-size: 0.65rem; background: var(--accent-p); color: white; padding: 2px 8px; border-radius: 20px; font-weight: 700; text-transform: uppercase; }
+    .btn-logout { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.78rem; transition: all 0.2s; }
+    .btn-logout:hover { background: rgba(239,68,68,0.25); }
+
+    /* ── Layout Resizable (3 Columnas) ── */
+    .app-container {
+      display: grid;
+      grid-template-columns: 280px 6px 1fr 6px 1fr;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Paneles */
+    .panel { display: flex; flex-direction: column; overflow: hidden; background: var(--bg-base); }
+    .panel-header { padding: 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .panel-title { font-size: 0.85rem; font-weight: 700; color: var(--text-muto); text-transform: uppercase; letter-spacing: 0.05em; }
+    .panel-content { flex: 1; overflow-y: auto; }
+
+    /* Divisores (Resizers) */
+    .resizer {
+      background: transparent;
+      cursor: col-resize;
+      transition: background 0.2s;
+      z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .resizer:hover, .resizer.dragging { background: var(--accent-p); opacity: 0.3; }
+    .resizer::after { content: ''; width: 2px; height: 30px; background: var(--border); border-radius: 2px; }
+
+    /* ── Listado Requerimientos (Col 1) ── */
+    .search-box { margin-top: 10px; position: relative; }
+    .search-box input { 
+      width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); 
+      border-radius: 8px; padding: 8px 12px; color: white; font-size: 0.8rem; outline: none;
+    }
+    .req-item {
+      padding: 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s;
+    }
+    .req-item:hover { background: var(--bg-panel-alt); }
+    .req-item.selected { background: rgba(139, 92, 246, 0.1); border-left: 3px solid var(--accent-p); }
+    .req-name { font-size: 0.9rem; font-weight: 700; color: white; }
+    .req-sub { font-size: 0.75rem; color: var(--text-muto); margin-top: 4px; }
+    .req-user { font-size: 0.7rem; color: var(--accent-p); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+    
+    /* Botón eliminar requerimiento */
+    .btn-del-req {
+      position: absolute; top: 12px; right: 12px;
+      background: none; border: none; color: var(--text-muto);
+      cursor: pointer; font-size: 0.9rem; opacity: 0; transition: all 0.2s;
+      padding: 4px; border-radius: 4px;
+    }
+    .req-item:hover .btn-del-req { opacity: 0.6; }
+    .btn-del-req:hover { color: var(--accent-r); opacity: 1 !important; background: rgba(239, 68, 68, 0.1); }
+
+    /* ── Detalle / Tabla de Documentos (Col 2) ── */
+    .col-mid { background: var(--bg-panel); border-right: 1px solid var(--border); border-left: 1px solid var(--border); }
+    .req-detail-top { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; }
+    .req-detail-info h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 4px; }
+    .req-detail-info p { font-size: 0.78rem; color: var(--text-muto); line-height: 1.4; }
+    .btn-gen-pdf {
+      background: var(--accent-s); color: white; border: none; padding: 10px 20px; 
+      border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem;
+      display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;
+    }
+    .btn-gen-pdf:hover { opacity: 0.9; }
+    .btn-gen-pdf:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Tabla de documentos */
+    .docs-table-wrap { padding: 0; }
+    table.docs-t { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    table.docs-t th { 
+      text-align: left; padding: 12px 20px; color: var(--text-muto); 
+      font-size: 0.7rem; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid var(--border);
+    }
+    table.docs-t td { padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    
+    /* Estados y Acciones */
+    .pill { padding: 3px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; }
+    .pill-p { background: rgba(148,163,184,0.1); color: #94a3b8; } /* Pendiente */
+    .pill-c { background: rgba(59,130,246,0.1); color: #60a5fa; } /* Cargado */
+    .pill-a { background: rgba(16,185,129,0.1); color: #34d399; } /* Aprobado */
+    .pill-r { background: rgba(239,68,68,0.1); color: #f87171; } /* Rechazado */
+
+    .btn-ver-doc { 
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-main);
+      padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
+    }
+    .btn-ver-doc:hover { background: rgba(255,255,255,0.1); }
+
+    /* ── Previsualización (Col 3) ── */
+    .col-right { background: #000; position: relative; }
+    .preview-header { 
+      background: #1e293b; border-bottom: 1px solid var(--border); padding: 10px 16px; 
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .preview-title { font-size: 0.8rem; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .preview-actions { display: flex; gap: 12px; }
+    .btn-prev-act { background: none; border: none; color: white; cursor: pointer; opacity: 0.7; }
+    .btn-prev-act:hover { opacity: 1; }
+    
+    iframe#previewFrame { flex: 1; border: none; width: 100%; height: 100%; background: #1a1a1a; }
+    
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; color: var(--text-muto); padding: 40px; text-align: center;
+    }
+
+    /* ── Modales ── */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; }
+    .overlay.open { display: flex; }
+    .modal-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; width: 100%; max-width: 440px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+    .modal-box h3 { margin-bottom: 16px; font-size: 1.1rem; }
+    .modal-box textarea { 
+      width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--border); 
+      border-radius: 10px; padding: 12px; color: white; font-size: 0.9rem; min-height: 100px; outline: none;
+    }
+    .modal-btns { display: flex; gap: 12px; margin-top: 20px; }
+    .btn-m { flex: 1; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 700; border: none; }
+    .btn-m-cancel { background: rgba(255,255,255,0.05); color: var(--text-muto); }
+    .btn-m-confirm { background: var(--accent-r); color: white; }
+
+    /* Barra de Scroll */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <span style="font-size:1.5rem; filter: hue-rotate(250deg);">📋</span>
+      <div>
+        <h1>Control Docus</h1>
+        <div style="font-size:0.75rem; color:var(--text-muto);" id="nombreSupervisor">Supervisor Uno</div>
+      </div>
+      <button onclick="window.top.location.href='<?= appUrl ?>?page=Index';" style="margin-left:20px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); color:white; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:0.8rem; font-weight:600;">⬅️ PLANILLA GENERAL</button>
+      <span class="badge-sup" id="rolSupervisor">Admin</span>
+    </div>
+    <div id="headerMsg" style="margin:0 20px; font-size:0.85rem;"></div>
+    <div style="display:flex; gap:12px; align-items:center;">
+      <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <!-- Aplicación Principal Resizable -->
+  <div class="app-container" id="appGrid">
+    
+    <!-- Columna 1: Requerimientos -->
+    <div class="panel">
+      <div class="panel-header">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="panel-title">Requerimientos</span>
+          <button onclick="cargar()" style="background:none; border:none; color:var(--accent-b); cursor:pointer; font-size:0.75rem; font-weight:700;">🔄 ACTUALIZAR</button>
+        </div>
+        <div class="search-box">
+          <input type="text" placeholder="Buscar..." oninput="filtrarReqs(this.value)">
+        </div>
+      </div>
+      <div class="panel-content" id="reqList">
+        <p style="padding:20px; opacity:0.5;">Cargando...</p>
+      </div>
+    </div>
+
+    <!-- Divisor 1 -->
+    <div class="resizer" id="resizer1"></div>
+
+    <!-- Columna 2: Detalles y Documentos -->
+    <div class="panel col-mid">
+      <div id="midEmpty" class="empty-state">
+        <span style="font-size:4rem; opacity:0.1; margin-bottom:15px;">👤</span>
+        <p>Seleccioná un requerimiento de la lista para ver sus documentos y estado.</p>
+      </div>
+      
+      <div id="midContent" style="display:none; flex-direction:column; height:100%;">
+        <div class="req-detail-top">
+          <div class="req-detail-info">
+            <h2 id="reqApellido">---</h2>
+            <p id="reqSubHeader">---</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+             <button id="btnAprobarLote" class="btn-sm" style="display:none; background:var(--accent-b); color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:700; cursor:pointer;" onclick="aprobarSeleccionados()">✓ Aprobar Marcados</button>
+             <button class="btn-gen-pdf" id="btnGenPdf" onclick="generarPdf()">
+               <span>📄</span> Generar PDF
+             </button>
+          </div>
+        </div>
+        
+        <div class="panel-content docs-table-wrap">
+          <table class="docs-t">
+            <thead>
+              <tr>
+                <th style="width:30px;"><input type="checkbox" id="checkAllDocs" onclick="toggleAllDocs(this.checked)"></th>
+                <th style="width:40px;">#</th>
+                <th>Documento</th>
+                <th style="width:110px;">Estado</th>
+                <th style="width:90px; text-align:right;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="docsList">
+              <!-- Cargado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Divisor 2 -->
+    <div class="resizer" id="resizer2"></div>
+
+    <!-- Columna 3: Previsualización -->
+    <div class="panel col-right">
+      <div id="prevEmpty" class="empty-state">
+        <span style="font-size:4rem; opacity:0.1; margin-bottom:15px;">📄</span>
+        <p>Seleccioná un documento de la tabla para previsualizarlo aquí.</p>
+      </div>
+      
+      <div id="prevContent" style="display:none; height:100%; flex-direction:column;">
+        <div class="preview-header">
+          <div class="preview-title" id="previewLabel">Documento</div>
+          <div class="preview-actions">
+            <button class="btn-prev-act" onclick="cerrarPreview()">✕</button>
+          </div>
+        </div>
+        <iframe id="previewFrame" src="" allowfullscreen></iframe>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modal Rechazo -->
+  <div class="overlay" id="modalRechazo">
+    <div class="modal-box">
+      <h3>Rechazar Documento</h3>
+      <p style="font-size:0.8rem; color:var(--text-muto); margin-bottom:12px;">Especificá el motivo para que el usuario pueda corregirlo.</p>
+      <textarea id="motivoRechazo" placeholder="Escribe aquí el motivo..."></textarea>
+      <div id="rechazoMsg"></div>
+      <div class="modal-btns">
+        <button class="btn-m btn-m-cancel" onclick="cerrarModal('modalRechazo')">Cancelar</button>
+        <button class="btn-m btn-m-confirm" id="btnConfirmarRechazo" onclick="confirmarRechazo()">Rechazar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var todosReqs = [];
+    var reqSeleccionado = null;
+    var docsActuales = [];
+    var idDocParaRechazar = null;
+
+    // ── Resizable Logic ───────────────────────────────────────────
+    (function initResizable() {
+      const grid = document.getElementById('appGrid');
+      const r1 = document.getElementById('resizer1');
+      const r2 = document.getElementById('resizer2');
+      let draggingR1 = false;
+      let draggingR2 = false;
+
+      r1.addEventListener('mousedown', e => { draggingR1 = true; r1.classList.add('dragging'); });
+      r2.addEventListener('mousedown', e => { draggingR2 = true; r2.classList.add('dragging'); });
+
+      document.addEventListener('mousemove', e => {
+        if (!draggingR1 && !draggingR2) return;
+        
+        const rect = grid.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        
+        // Obtener anchos actuales para recalcular fr
+        let columns = grid.style.gridTemplateColumns.split(' ');
+        if (!columns || columns.length < 5) columns = ['280px', '6px', '1fr', '6px', '1fr'];
+
+        if (draggingR1) {
+          const newW1 = Math.max(150, Math.min(x, 600));
+          columns[0] = newW1 + 'px';
+        } else if (draggingR2) {
+          // r2 depende de x respecto al ancho total
+          const w1 = parseInt(columns[0]);
+          const newW2 = Math.max(200, Math.min(x - w1 - 6, rect.width - w1 - 300));
+          columns[2] = newW2 + 'px';
+        }
+        
+        grid.style.gridTemplateColumns = columns.join(' ');
+      });
+
+      document.addEventListener('mouseup', () => {
+        draggingR1 = false; draggingR2 = false;
+        r1.classList.remove('dragging'); r2.classList.remove('dragging');
+      });
+    })();
+
+    // ── Funciones de Datos (Adaptadas) ─────────────────────────────
+    var cdNombre = localStorage.getItem('cd_nombre') || 'Supervisor';
+    var cdUid    = localStorage.getItem('cd_uid')    || '';
+    var cdRol    = localStorage.getItem('cd_rol')    || 'supervisor';
+
+    document.getElementById('nombreSupervisor').textContent = cdNombre;
+    document.getElementById('rolSupervisor').textContent = (cdRol === 'admin') ? 'Administrador' : 'Supervisor';
+    
+    if (!cdUid) logout(); // Fallback rápido
+
+    function logout() {
+      localStorage.clear();
+      try { window.top.location.href = '<?= appUrl ?>?page=ControlDocus'; } catch(e){}
+    }
+
+    function cargar() {
+      google.script.run
+        .withSuccessHandler(res => {
+          todosReqs = res.data || [];
+          renderReqs(todosReqs);
+          // Si hay uno seleccionado, refrescar sus documentos también
+          if (reqSeleccionado) {
+            const actual = todosReqs.find(r => r.idReq === reqSeleccionado.idReq);
+            if (actual) seleccionarReq(actual);
+          }
+        })
+        .listarRequerimientos(cdUid, cdRol);
+    }
+
+    function renderReqs(reqs) {
+      const list = document.getElementById('reqList');
+      list.innerHTML = reqs.length ? '' : '<p style="padding:20px; opacity:0.5;">Sin requerimientos.</p>';
+      reqs.forEach(req => {
+        // Formatear fecha y hora
+        let fechaHtml = '';
+        if (req.fechaApertura) {
+          const d = new Date(req.fechaApertura);
+          if (!isNaN(d.getTime())) {
+            const dateStr = d.toLocaleDateString('es-AR');
+            const timeStr = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+            fechaHtml = '<div class="req-sub" style="font-size:0.65rem; opacity:0.7;">📅 ' + dateStr + ' ' + timeStr + '</div>';
+          } else {
+            fechaHtml = '<div class="req-sub">' + req.fechaApertura + '</div>';
+          }
+        }
+
+        const item = document.createElement('div');
+        item.className = 'req-item' + (reqSeleccionado?.idReq === req.idReq ? ' selected' : '');
+        item.style.position = 'relative';
+        item.innerHTML = 
+          '<div class="req-name">' + req.apellidoNombre + '</div>' +
+          '<div class="req-sub">Aut: ' + req.autoridad + '</div>' +
+          fechaHtml +
+          '<div class="req-user">👤 ' + req.nombreUsuario + '</div>' +
+          '<button class="btn-del-req" title="Eliminar requerimiento" onclick="event.stopPropagation(); confirmarEliminarReq(\'' + req.idReq + '\')">🗑️</button>';
+        item.onclick = () => seleccionarReq(req);
+        list.appendChild(item);
+      });
+    }
+
+    function filtrarReqs(q) {
+      const f = todosReqs.filter(r => 
+        r.apellidoNombre.toLowerCase().includes(q.toLowerCase()) || 
+        r.nombreUsuario.toLowerCase().includes(q.toLowerCase())
+      );
+      renderReqs(f);
+    }
+
+    function seleccionarReq(req) {
+      reqSeleccionado = req;
+      renderReqs(todosReqs); // Update selection visual
+
+      document.getElementById('midEmpty').style.display = 'none';
+      document.getElementById('midContent').style.display = 'flex';
+      document.getElementById('reqApellido').textContent = req.apellidoNombre;
+      document.getElementById('reqSubHeader').textContent = `Aut: ${req.autoridad} | Usuario: ${req.nombreUsuario} | Vence: ${req.fechaVencimiento}`;
+      
+      const btnPdf = document.getElementById('btnGenPdf');
+      btnPdf.disabled = (req.aprobados < 1);
+      
+      const list = document.getElementById('docsList');
+      list.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:40px; opacity:0.5;">Cargando documentos...</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(res => {
+          docsActuales = res.data || [];
+          renderDocs(docsActuales);
+        })
+        .getDocumentosReq(req.idReq);
+    }
+
+    function renderDocs(docs) {
+      const list = document.getElementById('docsList');
+      list.innerHTML = '';
+      const ecMap = {'PENDIENTE':'pill-p','CARGADO':'pill-c','APROBADO':'pill-a','RECHAZADO':'pill-r'};
+      const elMap = {'PENDIENTE':'PENDIENTE','CARGADO':'EN REVISIÓN','APROBADO':'APROBADO','RECHAZADO':'RECHAZADO'};
+
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        const stClass = ecMap[d.estado] || 'pill-p';
+        const stLabel = elMap[d.estado] || d.estado;
+
+        let btns = '';
+        let canCheck = (d.estado === 'CARGADO');
+        
+        if (d.urlDrive && d.estado !== 'PENDIENTE') {
+          btns += '<button class="btn-ver-doc" onclick="previsualizar(\'' + d.urlDrive + '\', \'' + d.nombreReq.replace(/'/g, "\\'") + '\')">Ver</button>';
+        }
+        if (d.estado === 'CARGADO') {
+          btns += ' <button id="btn-apr-' + d.idDoc + '" class="btn-ver-doc" style="color:var(--accent-s); border-color:var(--accent-s);" onclick="aprobar(\'' + d.idDoc + '\')">✓</button>';
+          btns += ' <button class="btn-ver-doc" style="color:var(--accent-r); border-color:var(--accent-r);" onclick="abrirRechazo(\'' + d.idDoc + '\')">✕</button>';
+        }
+
+        tr.innerHTML = 
+          '<td><input type="checkbox" class="doc-checkbox" data-id="' + d.idDoc + '" ' + (canCheck ? '' : 'disabled') + ' onchange="verificarBotonLote()"></td>' +
+          '<td style="opacity:0.5;">#' + d.numReq + '</td>' +
+          '<td><div style="font-weight:500;">' + d.nombreReq + '</div>' + (d.obsRechazo ? '<div style="font-size:0.7rem; color:var(--accent-r);">⚠ ' + d.obsRechazo + '</div>' : '') + '</td>' +
+          '<td><span class="pill ' + stClass + '">' + stLabel + '</span></td>' +
+          '<td style="text-align:right;"><div style="display:flex; justify-content:flex-end; gap:6px;">' + btns + '</div></td>';
+        list.appendChild(tr);
+      });
+      verificarBotonLote();
+    }
+
+    function toggleAllDocs(val) {
+      document.querySelectorAll('.doc-checkbox:not(:disabled)').forEach(cb => cb.checked = val);
+      verificarBotonLote();
+    }
+
+    function verificarBotonLote() {
+      const seleccionados = Array.from(document.querySelectorAll('.doc-checkbox:checked')).length;
+      document.getElementById('btnAprobarLote').style.display = seleccionados > 0 ? 'block' : 'none';
+      document.getElementById('btnAprobarLote').textContent = '✓ Aprobar Marcados (' + seleccionados + ')';
+    }
+
+    async function aprobarSeleccionados() {
+      const boxes = Array.from(document.querySelectorAll('.doc-checkbox:checked'));
+      if (boxes.length === 0) return;
+      
+      const ids = boxes.map(b => b.dataset.id);
+      const btn = document.getElementById('btnAprobarLote');
+      btn.disabled = true;
+      btn.textContent = 'Procesando aprobación...';
+      
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res.ok) {
+            seleccionarReq(reqSeleccionado);
+          } else {
+            alert('Error en aprobación por lote: ' + res.message);
+          }
+          btn.disabled = false;
+        })
+        .withFailureHandler(e => {
+          alert('Error crítico: ' + e.message);
+          btn.disabled = false;
+        })
+        .aprobarDocumentosLote(ids);
+    }
+
+    function previsualizar(url, label) {
+      document.getElementById('prevEmpty').style.display = 'none';
+      document.getElementById('prevContent').style.display = 'flex';
+      document.getElementById('previewLabel').textContent = label;
+      
+      let src = url;
+      if (url.includes('drive.google.com/file/')) {
+        const match = url.match(/\/file\/d\/([^\/]+)/);
+        if (match) src = 'https://drive.google.com/file/d/' + match[1] + '/preview';
+      }
+      document.getElementById('previewFrame').src = src;
+    }
+
+    function cerrarPreview() {
+      document.getElementById('prevEmpty').style.display = 'flex';
+      document.getElementById('prevContent').style.display = 'none';
+      document.getElementById('previewFrame').src = '';
+    }
+
+    // ── Acciones (Aprobar/Rechazar/PDF) ────────────────────────────
+    function aprobar(idDoc) {
+      const btn = document.getElementById('btn-apr-' + idDoc);
+      if (btn) btn.disabled = true;
+      
+      // Optimización: actualización visual inmediata
+      const doc = docsActuales.find(d => d.idDoc === idDoc);
+      if (doc) {
+        doc.estado = 'APROBADO';
+        reqSeleccionado.aprobados++;
+        renderDocs(docsActuales);
+        renderReqs(todosReqs);
+      }
+      
+      google.script.run.withSuccessHandler(res => { 
+        if(!res.ok) {
+          alert('Error al aprobar: ' + res.message);
+          seleccionarReq(reqSeleccionado); // revertir si hubo error real
+        }
+      }).aprobarDocumento(idDoc);
+    }
+    function abrirRechazo(idDoc) {
+      idDocParaRechazar = idDoc;
+      document.getElementById('motivoRechazo').value = '';
+      document.getElementById('modalRechazo').classList.add('open');
+    }
+
+    function confirmarEliminarReq(idReq) {
+      if (!confirm('¿Estás seguro de que deseas eliminar este requerimiento y todos sus documentos asociados? También se eliminará su carpeta en Drive. Esta acción no se puede deshacer.')) return;
+      
+      // Refresco espontáneo: eliminar del array local y renderizar inmediatamente
+      todosReqs = todosReqs.filter(r => r.idReq !== idReq);
+      renderReqs(todosReqs);
+
+      if (reqSeleccionado && reqSeleccionado.idReq === idReq) {
+        reqSeleccionado = null;
+        document.getElementById('midEmpty').style.display = 'flex';
+        document.getElementById('midContent').style.display = 'none';
+        cerrarPreview();
+      }
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (!res.ok) {
+            alert('Error al sincronizar con el servidor: ' + res.message);
+            cargar(); // Si falló, recargamos para restaurar el estado real
+          }
+        })
+        .eliminarRequerimientoComp(idReq, cdUid, cdRol);
+    }
+    function confirmarRechazo() {
+      const m = document.getElementById('motivoRechazo').value.trim();
+      if(!m) return;
+      google.script.run.withSuccessHandler(res => {
+        cerrarModal('modalRechazo');
+        seleccionarReq(reqSeleccionado);
+      }).rechazarDocumento(idDocParaRechazar, m);
+    }
+    function cerrarModal(id) { document.getElementById(id).classList.remove('open'); }
+    
+    function generarPdf() {
+      if (!reqSeleccionado) return;
+      document.getElementById('btnGenPdf').disabled = true;
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('btnGenPdf').disabled = false;
+        if(res.ok) previsualizar(res.urlPdf, 'PDF Unificado');
+      }).generarPdfCD(reqSeleccionado.idReq);
+    }
+
+    // Autosincronización en segundo plano (cada 60s)
+    setInterval(cargar, 60000);
+
+    cargar();
+  </script>
+</body>
+</html>

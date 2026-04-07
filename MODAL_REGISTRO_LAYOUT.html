@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal Registros - Vista previa</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f1f5f9;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #1e293b;
+            margin-bottom: 30px;
+            font-size: 24px;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 10px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .form-group label {
+            font-weight: 600;
+            color: #334155;
+            font-size: 13px;
+        }
+        
+        .form-group input,
+        .form-group select {
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            background: white;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        /* ESTRUCTURA ESPECIAL PARA AUTORIDAD CON BOTÓN */
+        .autoridad-container {
+            display: flex;
+            gap: 4px;
+            align-items: stretch;
+        }
+        
+        .autoridad-container select {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .edit-btn {
+            padding: 6px 8px;
+            min-width: 44px;
+            min-height: 32px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .edit-btn:hover {
+            background: #2563eb;
+        }
+        
+        /* TAREAS COMO SELECT DROPDOWN */
+        .tareas-select {
+            width: 100%;
+        }
+        
+        .note {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 12px;
+            margin-top: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #92400e;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+            justify-content: flex-end;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .btn-save {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-cancel {
+            background: #e2e8f0;
+            color: #334155;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+        }
+        
+        .info-box {
+            background: #dbeafe;
+            border: 1px solid #0ea5e9;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #0369a1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Modal Registros - RESTAURADO</h1>
+        
+        <div class="info-box">
+            <strong>✅ Cambios Aplicados:</strong><br>
+            • TAREAS: Volvió a ser un <strong>SELECT dropdown</strong> con todas las opciones originales<br>
+            • AUTORIDAD: El botón ⚙️ ahora está <strong>al lado</strong>, no arriba<br>
+            • Mismo tamaño de inputs en toda la form
+        </div>
+        
+        <!-- ROW 1: AUTORIDAD, SEXO -->
+        <div class="form-row">
+            <div class="form-group">
+                <label>AUTORIDAD:</label>
+                <div class="autoridad-container">
+                    <select style="flex: 1; min-width: 0;">
+                        <option value="">-- Seleccionar --</option>
+                        <option value="ADM">ADM</option>
+                        <option value="SERRA">SERRA</option>
+                        <option value="SOTO">SOTO</option>
+                        <option value="VICE">VICE</option>
+                    </select>
+                    <button class="edit-btn" title="Gestionar autoridades">⚙️</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>SEXO:</label>
+                <select>
+                    <option value="">-- Seleccionar --</option>
+                    <option value="el Sr.">el Sr.</option>
+                    <option value="la Sra.">la Sra.</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- ROW 2: DNI, NOMBRES, APELLIDOS -->
+        <div class="form-row">
+            <div class="form-group">
+                <label>DNI:</label>
+                <input type="text" placeholder="Ej: 12345678">
+            </div>
+            
+            <div class="form-group">
+                <label>NOMBRES:</label>
+                <input type="text" placeholder="Ej: JUAN">
+            </div>
+            
+            <div class="form-group">
+                <label>APELLIDOS:</label>
+                <input type="text" placeholder="Ej: GARCIA">
+            </div>
+        </div>
+        
+        <!-- ROW 3: Otros campos -->
+        <div class="form-row">
+            <div class="form-group">
+                <label>FECHA ALTA:</label>
+                <input type="date">
+            </div>
+            
+            <div class="form-group">
+                <label>CUOTA:</label>
+                <select>
+                    <option value="">--</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>TOTAL:</label>
+                <input type="text" placeholder="Ej: 150000">
+            </div>
+        </div>
+        
+        <!-- ROW 4: TAREAS (SELECT DROPDOWN) -->
+        <div class="form-row">
+            <div class="form-group">
+                <label>TAREAS:</label>
+                <select class="tareas-select">
+                    <option value="">-- Seleccionar --</option>
+                    <option value="inherentes a la función legislativa">inherentes a la función legislativa</option>
+                    <option value="de asesoramiento legislativo">de asesoramiento legislativo</option>
+                    <option value="de asesoramiento">de asesoramiento</option>
+                    <option value="de asesoramiento afines a comisiones">de asesoramiento afines a comisiones</option>
+                    <option value="legislativas">legislativas</option>
+                    <option value="de asesoramiento en elaboración de proyectos">de asesoramiento en elaboración de proyectos</option>
+                    <option value="de asesoramiento contable">de asesoramiento contable</option>
+                    <option value="administrativas">administrativas</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>DOMICILIO:</label>
+                <input type="text" placeholder="Ej: Av. San Martín 123">
+            </div>
+            
+            <div class="form-group">
+                <label>LOCALIDAD:</label>
+                <select>
+                    <option value="">-- Seleccionar --</option>
+                    <option value="Capital">Capital, Mendoza</option>
+                    <option value="Godoy Cruz">Godoy Cruz, Mendoza</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="note">
+            <strong>📌 RESTAURACIÓN COMPLETADA:</strong><br>
+            El campo TAREAS ahora es un dropdown con todas las 40+ opciones de tareas precargadas,<br>
+            exactamente como estaba originalmente. El botón ⚙️ del AUTORIDAD está alineado a la derecha.
+        </div>
+        
+        <div class="button-group">
+            <button class="btn btn-cancel">Cancelar</button>
+            <button class="btn btn-save">Guardar</button>
+        </div>
+    </div>
+</body>
+</html>

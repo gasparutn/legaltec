@@ -1,0 +1,1621 @@
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // --- Referencias a elementos del DOM ---
+    const searchInput = document.getElementById('searchInput');
+    const tableBody = document.getElementById('tableBody');
+    const tableHeadersRow = document.getElementById('tableHeaders');
+    const loadingSpinner = document.getElementById('loading');
+    const messageArea = document.getElementById('message');
+    const globalActionButton = document.getElementById('globalActionButton');
+    const anioSelect = document.getElementById('anioSelect');
+    const mesSelect = document.getElementById('mesSelect');
+
+    const dataModal = document.getElementById('dataModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const formFields = document.getElementById('formFields');
+    const dataForm = document.getElementById('dataForm');
+    const saveButton = document.getElementById('saveButton');
+    const cancelButton = document.getElementById('cancelButton');
+    const btnRenovarContrato = document.getElementById('btnRenovarContrato');
+    const closeButtons = document.querySelectorAll('.close-button');
+
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+    const cancelDeleteConfirmButton = document.getElementById('cancelDeleteConfirmButton');
+
+    const globalActionModal = document.getElementById('globalActionModal');
+    const globalActionSelect = document.getElementById('globalActionSelect');
+    const globalRowSelect = document.getElementById('globalRowSelect');
+    const executeGlobalActionButton = document.getElementById('executeGlobalActionButton');
+    const cancelGlobalActionButton = document.getElementById('cancelGlobalActionButton');
+
+    const btnGeneraNota = document.getElementById('btnGeneraNota');
+    const tipoNotaSelect = document.getElementById('tipoNotaSelect');
+    const sexoNotaSelect = document.getElementById('sexoNotaSelect');
+
+    let originalData = [];
+    let currentHeaders = [];
+    let hiddenHeaders = [];
+    let editingRowIdx = -1; // Índice original en la hoja/originalData
+    let auxDataMap = {};
+    let rowToDeleteIdx = -1;
+    let autoridadesConfig = {}; // Mapeo de autoridad -> {secretario, correo}
+    let currentUserRole = null; // Rol del usuario actual
+    let generatingForm = false; // Flag para evitar ejecuciones simultáneas de generateFormFields
+    let currentDataVersion = null; // Versión detectada del Sheet
+    let syncInterval = null; // ID del intervalo de sincronización
+
+    // --- Variables de Paginación y Filtrado ---
+    let currentPage = 1;
+    let rowsPerPage = 10;
+    let filteredData = [];
+    const rowsPerPageSelect = document.getElementById('rowsPerPageSelect');
+    const prevPageBtn = document.getElementById('prevPageBtn');
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    const pageInfo = document.getElementById('pageInfo');
+    const rowCountInfo = document.getElementById('rowCountInfo');
+
+    // --- Configuración Global ---
+    const CONFIG = {
+      DATE_COLUMNS: ['FECHA ALTA', 'FECHA DE ALTA', 'FECHA BAJA', 'FECHA DE BAJA', 'FECHA BAJA CONTRATO', 'FECHA NOTIFICA'],
+      NUMBER_COLUMNS: [], // previously ['DNI', 'TOTAL']
+      SELECT_COLUMNS: {
+        'SEXO': ['', 'el Sr.', 'la Sra.'],
+        'AUTORIDAD': [
+          '', 'ADM', 'ANA', 'ASES', 'BARRO', 'CANO', 'CHAPPEL', 'DERRACHE', 'DIUMENJO',
+          'EISENCHLAS', 'FLORIDIA', 'FREIDEMBERG', 'GALIÑARES', 'GÓMEZ', 'GONZÁLEZ F.',
+          'GONZÁLEZ V.', 'IGLESIAS', 'KERCHNER', 'LAFERTE', 'LEGISLATIVA', 'MAGISTRETTI',
+          'MANONI', 'MARCOLINI', 'MARQUEZ', 'NAJUL', 'PERVIU', 'PEZZUTTI', 'PRADINES',
+          'PRINGLES', 'QUATTRINI', 'ROSTAND', 'RUS', 'SABADIN', 'SÁEZ', 'SAINZ', 'SAT',
+          'SERRA', 'SEVILLA', 'SOTO', 'VAQUER', 'VICCHI', 'VICE', 'ZLOBEC'
+        ],
+        'AUTOR': ['', 'JU', 'GA', 'NI'],
+        'CUOTA': ['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+        'TAREAS': ['', "inherentes a la función legislativa", "de asesoramiento legislativo", "de asesoramiento", "de asesoramiento afines a comisiones", "legislativas", "de asesoramiento en elaboración de proyectos", "de asesoramiento contable", "de Profesora de Braille", "administrativas en comisiones", "administrativas", "de asesoramiento comunicacional", "de asesoramiento y labor legislativo", "de asesoramiento técnico", "en oficina de Ética Pública", "de docencia en lenguaje de señas", "administrativas en la dirección de compras", "de Gestión Ciudadana en San Rafael", "de patrocinio jurídico gratuito", "de fonoaudióloga en Coro de la Legislatura Provincial", "de operatividad, programación, actualización y mantenimiento del sitio web oficial", "de asesoramiento legal y técnico", "de prevención de salud", "asesoramiento legal", "asesoramiento en comunicación y redes", "administrativas en la dirección de compras", "asesoramiento en comunicación", "de asesoramiento económico", "de asesoramiento en hábitat y vivienda", "de asistencia en prensa", "de asesoramiento administrativo", "de asesoramiento en prensa", "administrativas en prensa", "de asesoramiento jurídico", "en Coro de la Legislatura como preparadora vocal de la H. Cámara de Senadores", "en Secretaría de Comunicación Institucional y Prensa", "en Secretaría de Transporte", "de Dirección de despacho"],
+        'LOCALIDAD': ['', 'General Alvear,  Mendoza', 'Godoy Cruz, Mendoza', 'Guaymallén, Mendoza', 'Junín, Mendoza', 'La Paz, Mendoza', 'Las Heras, Mendoza', 'Lavalle, Mendoza', 'Luján de Cuyo, Mendoza', 'Maipú, Mendoza', 'Malargüe, Mendoza', 'Rivadavia, Mendoza', 'San Carlos, Mendoza', 'San Martín, Mendoza', 'San Rafael, Mendoza', 'Santa Rosa, Mendoza', 'Tunuyán, Mendoza', 'Tupungato, Mendoza', 'Capital, Mendoza'],
+        'ESTADO': ['Pendiente', 'Contrato', 'Resolución', 'Notificado', 'Baja']
+      }
+    };
+
+    // --- Inicialización de Selectores de Periodo ---
+    function initPeriodSelectors() {
+      const currentYear = new Date().getFullYear();
+      if (anioSelect) {
+        anioSelect.innerHTML = '';
+        for (let y = currentYear; y >= 2024; y--) {
+          const opt = document.createElement('option');
+          opt.value = y;
+          opt.textContent = y;
+          anioSelect.appendChild(opt);
+        }
+      }
+    }
+    initPeriodSelectors();
+
+    if (anioSelect) anioSelect.addEventListener('change', () => { loadData(); });
+    if (mesSelect) mesSelect.addEventListener('change', () => { loadData(); });
+
+    function showMessage(msg, isError = false) {
+      if (messageArea) {
+        messageArea.textContent = msg;
+        messageArea.className = isError ? 'message-area error' : 'message-area';
+        setTimeout(() => messageArea.textContent = '', 5000);
+      }
+    }
+
+    function showModal(modalElement) {
+      if (modalElement) {
+        modalElement.style.display = 'flex';
+        // La animación fadeInUp ya está en el CSS del modal-content
+      }
+    }
+
+    function hideModal(modalElement) {
+      if (modalElement) {
+        modalElement.style.display = 'none';
+      }
+    }
+
+    function closeAllModals() {
+      hideModal(dataModal);
+      hideModal(confirmModal);
+      hideModal(globalActionModal);
+      dataForm.reset();
+    }
+
+    // --- Funciones de Sincronización y Utilidad ---
+
+    /**
+     * Convierte cualquier formato de fecha a YYYY-MM-DD para inputs de tipo date
+     */
+    function formatDateForInput(val) {
+      if (!val) return '';
+      const str = String(val).trim();
+
+      // Caso 1: Formato DD/MM/YYYY o D/M/YYYY
+      const partsSlash = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (partsSlash) {
+        return `${partsSlash[3]}-${partsSlash[2].padStart(2, '0')}-${partsSlash[1].padStart(2, '0')}`;
+      }
+
+      // Intento vía objeto Date nativo
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().split('T')[0];
+      }
+
+      return str;
+    }
+
+    /**
+     * Actualiza visualmente el indicador de sincronización
+     * @param {'syncing' | 'success' | 'error' | 'idle'} status 
+     */
+    function updateSyncStatus(status, customMsg = null) {
+      const indicator = document.getElementById('syncIndicator');
+      if (!indicator) return;
+
+      indicator.classList.remove('syncing', 'sync-success', 'sync-error');
+
+      switch (status) {
+        case 'syncing':
+          indicator.textContent = customMsg || 'Sincronizando...';
+          indicator.classList.add('syncing');
+          break;
+        case 'success':
+          indicator.textContent = customMsg || '✓ Sincronizado';
+          indicator.classList.add('sync-success');
+          break;
+        case 'error':
+          indicator.textContent = customMsg || '⚠ Error Red';
+          indicator.classList.add('sync-error');
+          break;
+        case 'idle':
+          indicator.textContent = customMsg || 'En espera';
+          indicator.classList.remove('syncing', 'sync-success', 'sync-error');
+          break;
+      }
+    }
+
+
+
+    function refreshTareasSelect(forcedSelectedValue) {
+      // Actualiza solo el SELECT de TAREAS sin cerrar el modal ni recargar todo
+      const ts = new Date().getTime(); // Cache buster
+      google.script.run
+        .withSuccessHandler(tareas => {
+          if (tareas && tareas.length > 0) {
+            CONFIG.SELECT_COLUMNS['TAREAS'] = ['', ...tareas];
+          }
+          const tareasSelect = document.getElementById('TAREAS');
+          if (tareasSelect) {
+            const currentVal = forcedSelectedValue || tareasSelect.value;
+            tareasSelect.innerHTML = '';
+            CONFIG.SELECT_COLUMNS['TAREAS'].forEach(v => {
+              const o = document.createElement('option');
+              o.value = v;
+              o.textContent = v;
+              tareasSelect.appendChild(o);
+            });
+            // Intentar recuperar el valor anterior si sigue existiendo
+            let found = false;
+            Array.from(tareasSelect.options).forEach(opt => {
+              if (opt.value.trim().toUpperCase() === currentVal.trim().toUpperCase()) {
+                opt.selected = true;
+                found = true;
+              }
+            });
+            // Si no encontramos el valor anterior, dejar el primero seleccionado
+            if (!found && tareasSelect.options.length > 0) {
+              tareasSelect.options[0].selected = true;
+            }
+          }
+        })
+        .withFailureHandler(err => console.error("Error al refrescar TAREAS: " + err))
+        .getTareasList(ts);
+    }
+
+    function refreshAutoridadesSelect(forcedSelectedValue) {
+      // Actualiza solo el SELECT de AUTORIDAD sin cerrar el modal ni recargar formulario
+      const ts = new Date().getTime(); // Cache buster
+      google.script.run
+        .withSuccessHandler(autoridades => {
+          if (autoridades && Object.keys(autoridades).length > 0) {
+            autoridadesConfig = autoridades;
+            const apellidosList = Object.keys(autoridadesConfig).sort();
+            CONFIG.SELECT_COLUMNS['AUTORIDAD'] = ['', ...apellidosList];
+          }
+
+          const autoridadSelect = document.getElementById('AUTORIDAD');
+          if (autoridadSelect && autoridadSelect.closest('form')) { // Solo si está en el modal abierto
+            const currentVal = forcedSelectedValue || autoridadSelect.value;
+            autoridadSelect.innerHTML = '';
+            CONFIG.SELECT_COLUMNS['AUTORIDAD'].forEach(v => {
+              const o = document.createElement('option');
+              o.value = v;
+              o.textContent = v;
+              autoridadSelect.appendChild(o);
+            });
+
+            // Restaurar valor anterior si existe
+            let found = false;
+            Array.from(autoridadSelect.options).forEach(opt => {
+              if (opt.value.trim().toUpperCase() === currentVal.trim().toUpperCase() && currentVal !== '') {
+                opt.selected = true;
+                found = true;
+              }
+            });
+
+            // Si no encontramos, dejar el primero (vacío)
+            if (!found && autoridadSelect.options.length > 0) {
+              autoridadSelect.options[0].selected = true;
+            }
+
+            // Disparar evento change para actualizar secretario/correo
+            const event = new Event('change', { bubbles: true });
+            autoridadSelect.dispatchEvent(event);
+          }
+        })
+        .withFailureHandler(err => console.error("Error al refrescar AUTORIDADES: " + err))
+        .getAutoridadesList(ts);
+    }
+
+    function loadData(isSilent = false) {
+      if (loadingSpinner && !isSilent) loadingSpinner.style.display = 'block';
+      if (!isSilent) updateSyncStatus('syncing');
+
+      let filterOptions = { type: 'recent' };
+      if (mesSelect && anioSelect) {
+        const m = mesSelect.value;
+        const y = anioSelect.value;
+        if (m === 'all') {
+          filterOptions = { type: 'period', year: y, month: 'all_months' }; // Custom logic
+        } else if (m !== 'recent') {
+          filterOptions = { type: 'period', month: m, year: y };
+        }
+      }
+
+      console.log("Cargando datos con opciones:", filterOptions);
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(response => {
+            try {
+              if (!response) throw new Error('Respuesta nula.');
+              if (!response.success) throw new Error(response.message);
+
+              // Comparar datos para ver si es necesario re-renderizar
+              const oldDataString = JSON.stringify(originalData);
+              const newDataString = JSON.stringify(response.data || []);
+              const hasChanged = oldDataString !== newDataString;
+
+              originalData = response.data || [];
+              currentHeaders = response.headers || [];
+              hiddenHeaders = response.hiddenHeaders || [];
+              autoridadesConfig = response.autoridadesConfig || {};
+
+              if (hasChanged) {
+                console.log("Detectados cambios en los datos, re-renderizando...");
+                // No aplicar filtro, mostrar todos los datos inicialmente
+                filteredData = [...originalData];
+                updatePaginationControls();
+                renderTable(currentHeaders, filteredData);
+              }
+
+              // Actualizar versión de datos para el polling
+              google.script.run
+                .withSuccessHandler(r => { if (r.success) currentDataVersion = r.version; })
+                .checkDataVersion(filterOptions);
+
+              // Iniciar verificación de integridad automática (Evaluadora y Comparadora)
+              checkDataIntegrity();
+
+              if (!isSilent) updateSyncStatus('success');
+            } catch (e) {
+              showMessage('Error: ' + e.message, true);
+              updateSyncStatus('error', 'Error al sincronizar');
+            } finally {
+              if (loadingSpinner) loadingSpinner.style.display = 'none';
+            }
+          })
+          .withFailureHandler(error => {
+            showMessage('Error al cargar: ' + error.message, true);
+            if (loadingSpinner) loadingSpinner.style.display = 'none';
+            updateSyncStatus('error');
+          })
+          .getData(filterOptions);
+      }
+    }
+
+    /**
+     * Inicia el proceso de polling para auto-sincronización
+     */
+    function startAutoSync() {
+      if (syncInterval) clearInterval(syncInterval);
+
+      // Polling cada 60 segundos
+      syncInterval = setInterval(() => {
+        checkForUpdates();
+      }, 60000);
+
+      console.log("Auto-sincronización iniciada (60s)");
+    }
+
+    /**
+     * Verifica si hay cambios en el servidor
+     */
+    function checkForUpdates() {
+      if (editingRowIdx !== -1) return; // No auto-refrescar si hay un modal abierto/editando
+
+      let filterOptions = { type: 'recent' };
+      if (mesSelect && anioSelect) {
+        filterOptions = {
+          type: mesSelect.value === 'all' ? 'period' : (mesSelect.value === 'recent' ? 'recent' : 'period'),
+          year: anioSelect.value,
+          month: mesSelect.value === 'all' ? 'all_months' : mesSelect.value
+        };
+      }
+
+      google.script.run
+        .withSuccessHandler(r => {
+          if (r.success && r.version !== currentDataVersion) {
+            console.log("Cambio detectado vía polling. Refrescando...");
+            updateSyncStatus('syncing', 'Detectando cambios...');
+            loadData(true); // Carga silenciosa
+            setTimeout(() => updateSyncStatus('success'), 3000); // Volver a éxito tras 3s
+          } else {
+            // Sigue sincronizado
+            updateSyncStatus('success');
+          }
+        })
+        .withFailureHandler(() => updateSyncStatus('error'))
+        .checkDataVersion(filterOptions);
+    }
+
+    function updatePaginationControls() {
+      const totalRows = filteredData.length;
+      const totalPages = rowsPerPage === 'all' ? 1 : Math.ceil(totalRows / rowsPerPage);
+
+      if (currentPage > totalPages) currentPage = totalPages || 1;
+
+      pageInfo.textContent = `Página ${currentPage} de ${totalPages || 1}`;
+      prevPageBtn.disabled = currentPage === 1;
+      nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
+      rowCountInfo.textContent = `(Total: ${totalRows} registros)`;
+    }
+
+    function renderTable(headers, data) {
+      if (!tableHeadersRow || !tableBody) return;
+      tableHeadersRow.innerHTML = '';
+      tableBody.innerHTML = '';
+
+      // Actualizar encabezados
+      headers.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h || '';
+        tableHeadersRow.appendChild(th);
+      });
+
+      // Paginación de los datos a mostrar
+      let dataToShow = data;
+      if (rowsPerPage !== 'all') {
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + parseInt(rowsPerPage);
+        dataToShow = data.slice(start, end);
+      }
+
+      const bodyFragment = document.createDocumentFragment();
+      dataToShow.forEach((rowData, index) => {
+        // rowData: [...visibles, '', ...ocultas, originalIdx]
+        const originalIdxIndex = headers.length + hiddenHeaders.length;
+        const originalIdx = rowData[originalIdxIndex];
+
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.className = 'fade-in';
+        tr.style.animationDelay = (index * 0.02) + 's';
+
+        tr.addEventListener('click', (e) => {
+          if (e.target.closest('.option-button') || e.target.closest('.action-checkbox')) return;
+          toggleRowExpansion(tr, rowData);
+        });
+
+        for (let i = 0; i < headers.length; i++) {
+          const cellData = rowData[i];
+          const hName = headers[i] || '';
+          const td = document.createElement('td');
+
+          if (hName === 'CHECK') {
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'action-checkbox';
+            cb.checked = cellData === true;
+            cb.dataset.originalIdx = originalIdx;
+            cb.title = cb.checked ? 'Tildado (procesado). Click para destilar y habilitar acción.' : 'Destildado. Se procesará al ejecutar una acción.';
+            // Guardar el cambio en el Sheet cuando el usuario tilda/destilda
+            cb.addEventListener('change', function () {
+              const idx = parseInt(this.dataset.originalIdx);
+              const nuevoValor = this.checked;
+              this.disabled = true;
+              this.style.opacity = '0.5';
+              const self = this;
+              google.script.run
+                .withSuccessHandler(() => {
+                  self.disabled = false;
+                  self.style.opacity = '1';
+                  self.title = nuevoValor ? 'Tildado (procesado). Click para destilar y habilitar acción.' : 'Destildado. Se procesará al ejecutar una acción.';
+                  showMessage(nuevoValor ? 'Fila marcada como procesada.' : 'Fila habilitada para procesar.');
+                  // Actualizar originalData en memoria para que rowsToProcess refleje el cambio
+                  const checkIdx = currentHeaders.indexOf('CHECK');
+                  const originalIdxIndex = currentHeaders.length + hiddenHeaders.length;
+                  const fila = originalData.find(r => r[originalIdxIndex] === idx);
+                  if (fila && checkIdx >= 0) fila[checkIdx] = nuevoValor;
+                })
+                .withFailureHandler(err => {
+                  self.checked = !nuevoValor; // revertir visualmente
+                  self.disabled = false;
+                  self.style.opacity = '1';
+                  showMessage('Error al guardar estado: ' + err.message, true);
+                })
+                .updateCheckValue(idx, nuevoValor);
+            });
+            td.appendChild(cb);
+            td.style.textAlign = 'center';
+          } else if (hName === 'OPC') {
+            const btnW = createOptBtn('W', 'preview-word', 'Previsualizar Contrato', () => handlePreviewFile(rowData, 'CONTRATO'));
+            const btnT = createOptBtn('📄', 'preview-txt', 'Previsualizar Resolución', () => handlePreviewFile(rowData, 'RESOLUCION'));
+            const btnE = createOptBtn('&#9998;', 'edit', 'Editar', (e) => handleEditClick(originalIdx));
+            const btnD = createOptBtn('&#128465;', 'delete', 'Eliminar', () => handleDeleteClick(originalIdx));
+
+            td.appendChild(btnW); td.appendChild(btnT); td.appendChild(btnE); td.appendChild(btnD);
+            td.style.minWidth = '140px';
+          } else if (hName === 'ESTADO') {
+            td.textContent = cellData;
+            if (cellData) {
+              // Normalizar quitando acentos para que coincida con el CSS (.status-resolucion)
+              let normalized = String(cellData).toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+              let cls = 'status-' + normalized.replace(/\s+/g, '-');
+              if (cellData.startsWith('Proceso')) cls = 'status-proceso';
+              td.classList.add(cls);
+            }
+          } else if (hName === 'TOTAL') {
+            const val = parseFloat(String(cellData || '').replace(/[^0-9.-]+/g, ''));
+            if (!isNaN(val)) {
+              td.textContent = "$" + val.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            } else {
+              td.textContent = cellData;
+            }
+          } else {
+            td.textContent = cellData;
+          }
+          tr.appendChild(td);
+        }
+        bodyFragment.appendChild(tr);
+      });
+      tableBody.appendChild(bodyFragment);
+    }
+
+    function createOptBtn(html, cls, title, onClick) {
+      const b = document.createElement('button');
+      b.className = 'option-button ' + cls;
+      b.innerHTML = html;
+      b.title = title;
+      b.addEventListener('click', (e) => { e.stopPropagation(); onClick(e); });
+      return b;
+    }
+
+    function toggleRowExpansion(tr, rowData) {
+      const next = tr.nextElementSibling;
+      if (next && next.classList.contains('detail-row')) {
+        next.remove();
+        tr.classList.remove('expanded');
+      } else {
+        const detailTr = document.createElement('tr');
+        detailTr.className = 'detail-row';
+        const detailTd = document.createElement('td');
+        detailTd.colSpan = currentHeaders.length;
+        const detailContent = document.createElement('div');
+        detailContent.className = 'detail-content';
+
+        // Mapeo de índices de campos ocultos
+        const hiddenFieldsMap = {};
+        hiddenHeaders.forEach((label, i) => {
+          const val = rowData[currentHeaders.length + i];
+          hiddenFieldsMap[label] = (val !== undefined && val !== '') ? val : '';
+        });
+
+        // Definir campos a mostrar en orden específico
+        const fieldsToShow = [
+          { field: 'CUOTA', label: 'CUOTAS' },
+          { field: 'SECRETARIO', label: 'SECRETARIO' },
+          { field: 'CORREO SECRETARIO', label: 'CORREO SECRETARIO' },
+          { field: 'DOMICILIO', label: 'DOMICILIO' },
+          { field: 'LOCALIDAD', label: 'LOCALIDAD' },
+          { field: 'GENERA CONTRATO', label: 'GENERA CONTRATO' },
+          { field: 'GENERA RESOLUCION', label: 'GENERA RESOLUCION' },
+          { field: 'FECHA NOTIFICA', label: 'FECHA NOTIFICA' },
+          { field: 'BAJA CONTRATO', label: 'FECHA DE BAJA' },
+          { field: 'AUTOR', label: 'AUTOR' }
+        ];
+
+        // Mostrar solo campos que tengan valor
+        fieldsToShow.forEach((item) => {
+          const val = hiddenFieldsMap[item.field];
+          if (val) {
+            const detailItem = document.createElement('div');
+            detailItem.className = 'detail-item';
+            detailItem.innerHTML = `<span class="label">${item.label}: </span><span class="value">${val}</span>`;
+            detailContent.appendChild(detailItem);
+          }
+        });
+
+        detailTd.appendChild(detailContent);
+        detailTr.appendChild(detailTd);
+        tr.after(detailTr);
+        tr.classList.add('expanded');
+      }
+    }
+
+    searchInput.onkeyup = () => {
+      const term = searchInput.value.toLowerCase();
+      filteredData = originalData.filter(r => r.some(c => String(c).toLowerCase().includes(term)));
+      currentPage = 1;
+      updatePaginationControls();
+      renderTable(currentHeaders, filteredData);
+    };
+
+    // --- Listeners de Paginación ---
+    rowsPerPageSelect.onchange = () => {
+      rowsPerPage = rowsPerPageSelect.value === 'all' ? 'all' : parseInt(rowsPerPageSelect.value);
+      currentPage = 1;
+      updatePaginationControls();
+      renderTable(currentHeaders, filteredData);
+    };
+
+    prevPageBtn.onclick = () => {
+      if (currentPage > 1) {
+        currentPage--;
+        updatePaginationControls();
+        renderTable(currentHeaders, filteredData);
+        document.querySelector('.table-container').scrollTop = 0;
+      }
+    };
+
+    nextPageBtn.onclick = () => {
+      const totalPages = rowsPerPage === 'all' ? 1 : Math.ceil(filteredData.length / rowsPerPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        updatePaginationControls();
+        renderTable(currentHeaders, filteredData);
+        document.querySelector('.table-container').scrollTop = 0;
+      }
+    };
+
+    addButton.onclick = () => {
+      editingRowIdx = -1;
+      modalTitle.textContent = 'Agregar Registro/Crear Notas';
+      if (btnRenovarContrato) btnRenovarContrato.style.display = 'none';
+      if (tipoNotaSelect) tipoNotaSelect.value = '';
+      if (sexoNotaSelect) sexoNotaSelect.value = '';
+      generateFormFields({});
+      showModal(dataModal);
+      // Cuando se cambia el tipo de nota, actualizar campos visibles
+      if (tipoNotaSelect) {
+        tipoNotaSelect.onchange = () => applyNotaFieldVisibility(tipoNotaSelect.value);
+      }
+    };
+
+    globalActionButton.onclick = openGlobalActionModal;
+    closeButtons.forEach(b => b.onclick = (e) => hideModal(document.getElementById(e.target.dataset.modal)));
+    cancelButton.onclick = closeAllModals;
+    cancelDeleteConfirmButton.onclick = closeAllModals;
+    cancelGlobalActionButton.onclick = () => {
+      resetGlobalActionModal();
+      closeAllModals();
+    };
+
+    dataForm.onsubmit = (e) => {
+      e.preventDefault();
+      const fd = getFormData();
+
+      // Campos requeridos solicitados por el usuario
+      const required = ['AUTORIDAD', 'AUTOR', 'DNI', 'NOMBRES', 'APELLIDOS', 'FECHA ALTA', 'TAREAS', 'CUOTA', 'TOTAL', 'DOMICILIO', 'LOCALIDAD', 'CORREO SECRETARIO', 'SECRETARIO'];
+      let missing = [];
+
+      // Limpiar bordes rojos previos
+      document.querySelectorAll('#dataForm input, #dataForm select').forEach(el => el.style.border = '');
+
+      required.forEach(field => {
+        // En el caso de SECRETARIO y CORREO SECRETARIO, el campo puede ser hidden o visible
+        const val = fd[field];
+        if (!val || String(val).trim() === '') {
+          missing.push(field);
+          const inputEl = document.getElementById(field);
+          if (inputEl) inputEl.style.border = '2px solid red';
+        }
+      });
+
+      if (missing.length > 0) {
+        alert('Faltan campos obligatorios:\n' + missing.join(', '));
+        return;
+      }
+
+      saveButton.disabled = true;
+      saveButton.textContent = 'Guardando...';
+
+      const notaPdfFile = document.getElementById('notaPdfFile');
+      const hasFile = notaPdfFile && notaPdfFile.files && notaPdfFile.files.length > 0;
+
+      const run = google.script.run
+        .withSuccessHandler(r => {
+          saveButton.disabled = false;
+          saveButton.textContent = 'Guardar';
+
+          if (r.success) {
+            // Si hay un archivo PDF, subirlo a Google Drive
+            if (hasFile) {
+              const file = notaPdfFile.files[0];
+              const reader = new FileReader();
+              const recordId = r.newId || (editingRowIdx + 1); // Usar el nuevo ID si es creación, sino el ID de edición
+              reader.onload = (event) => {
+                const base64Data = event.target.result.split(',')[1]; // Obtener solo la parte base64
+                google.script.run
+                  .withSuccessHandler(uploadResult => {
+                    if (uploadResult.success) {
+                      showMessage('Registro guardado y nota PDF subida: ' + uploadResult.message);
+                    } else {
+                      showMessage('Registro guardado. Advertencia al subir PDF: ' + uploadResult.message, true);
+                    }
+                    closeAllModals();
+                    loadData();
+                  })
+                  .withFailureHandler(err => {
+                    showMessage('Registro guardado pero error al subir PDF: ' + err.message, true);
+                    closeAllModals();
+                    loadData();
+                  })
+                  .uploadNotaPdf(base64Data, fd['APELLIDOS'], fd['AUTORIDAD'], recordId);
+              };
+              reader.readAsDataURL(file);
+            } else {
+              showMessage(r.message);
+              closeAllModals();
+              loadData();
+            }
+          } else {
+            showMessage(r.message, true);
+          }
+        })
+        .withFailureHandler(err => {
+          saveButton.disabled = false;
+          saveButton.textContent = 'Guardar';
+          showMessage(err.message, true);
+        });
+
+      if (editingRowIdx === -1) run.addRow(fd);
+      else run.updateRow(editingRowIdx, fd);
+    };
+
+    if (btnGeneraNota) {
+      btnGeneraNota.onclick = () => {
+        const tipoNota = tipoNotaSelect.value;
+        if (!tipoNota) {
+          alert('Seleccione un Tipo de Nota.');
+          return;
+        }
+
+        const fd = getFormData();
+        fd['TIPO_NOTA_SELECT'] = tipoNota;
+        // SEXO ahora viene del campo dinámico del form (mismo row que AUTOR y AUTORIDAD)
+        const sexoVal = fd['SEXO'] || '';
+        fd['SEXO_NOTA_SELECT'] = sexoVal;
+        const autoridadVal = fd['AUTORIDAD'] || '';
+
+        // Limpiar bordes rojos anteriores
+        document.querySelectorAll('#dataForm input, #dataForm select').forEach(el => el.style.border = '');
+
+        let required = [];
+        let requiereSexo = false;
+        const autoridad = autoridadVal;
+
+        // Validar combinaciones permitidas de tipo de nota + autoridad
+        if (tipoNota === 'Nota Alta Senado') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Nota Alta Senado, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'TOTAL', 'CUOTA', 'TAREAS', 'FECHA ALTA'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Nota Alta Vice') {
+          if (autoridad !== 'ADM') {
+            return alert('Vicegobernación debe pedir a Secretaría Administrativa una Nota Alta Vice únicamente, elija la opción "ADM" de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'TOTAL', 'CUOTA', 'TAREAS', 'FECHA ALTA'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Nota Baja Senado') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Nota Baja Senado, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'REQ'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Nota Baja Vice') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Nota Baja Vice, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'REQ'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Prórroga Senado') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Prórroga Senado, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CUOTA'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Prórroga Vice') {
+          if (autoridad === 'VICE') {
+            return alert('Vicegobernación no puede pedir una Prórroga Vice, elija algún Senador/a o Secretaría Administrativa de la lista.');
+          }
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CUOTA'];
+          requiereSexo = true;
+        } else if (tipoNota === 'Nota DDJJ') {
+          required = ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CORREO LOCADOR'];
+          requiereSexo = false;
+        }
+
+        if (requiereSexo && !sexoVal) {
+          const sexoInput = document.getElementById('SEXO');
+          if (sexoInput) sexoInput.style.border = '2px solid red';
+          return alert('Seleccione el sexo para la nota.');
+        }
+
+        let missing = [];
+        required.forEach(req => {
+          if (!fd[req] || String(fd[req]).trim() === '') {
+            missing.push(req);
+            const inputEl = document.getElementById(req);
+            if (inputEl) inputEl.style.border = '2px solid red';
+          }
+        });
+
+        if (missing.length > 0) {
+          alert('Faltan datos requeridos:\n' + missing.join(', '));
+          return;
+        }
+
+        btnGeneraNota.disabled = true;
+        btnGeneraNota.textContent = 'Generando...';
+
+        google.script.run
+          .withSuccessHandler(r => {
+            btnGeneraNota.disabled = false;
+            btnGeneraNota.textContent = 'Genera Nota';
+            if (r.success) {
+              alert(r.message);
+              // closeAllModals(); // Opcional, si queremos que se cierre luego de generar
+            } else {
+              alert(r.message);
+            }
+          })
+          .withFailureHandler(e => {
+            btnGeneraNota.disabled = false;
+            btnGeneraNota.textContent = 'Genera Nota';
+            alert('Error al conectar: ' + e.message);
+          })
+          .generarNotaDesdeModal(fd);
+      };
+    }
+
+    function generateFormFields(rowData) {
+      // Evitar ejecuciones simultáneas
+      if (generatingForm) return;
+      generatingForm = true;
+
+      // Generar campos rápidamente con datos en caché
+      generateFormFieldsContent(rowData);
+      generatingForm = false;
+
+      // Refrescar datos en background SIN bloquear la UI
+      setTimeout(() => {
+        google.script.run
+          .withSuccessHandler(tareas => {
+            if (tareas && tareas.length > 0) {
+              CONFIG.SELECT_COLUMNS['TAREAS'] = ['', ...tareas];
+            }
+            refreshTareasSelect(); // Actualizar SELECT con nuevos datos
+          })
+          .getTareasList(new Date().getTime());
+
+        google.script.run
+          .withSuccessHandler(autoridades => {
+            if (autoridades && Object.keys(autoridades).length > 0) {
+              autoridadesConfig = autoridades;
+              const apellidosList = Object.keys(autoridadesConfig).sort();
+              CONFIG.SELECT_COLUMNS['AUTORIDAD'] = ['', ...apellidosList];
+            }
+            refreshAutoridadesSelect(); // Actualizar SELECT con nuevos datos
+          })
+          .getAutoridadesList(new Date().getTime());
+      }, 100); // Pequeño delay para no bloquear
+    }
+
+    function generateFormFieldsContent(rowData) {
+      // Limpiar nuevamente para asegurar que no hay duplicados
+      formFields.innerHTML = '';
+
+      const EXCLUDED = ['Id', 'ID', 'CheckBox', 'OPC', 'ACCION', 'CHECK', 'FECHA NOTIFICA', 'FECHA BAJA CONTRATO', 'GENERA CONTRATO', 'GENERA RESOLUCION', 'BAJA CONTRATO'];
+      const allHeaders = [...currentHeaders, ...hiddenHeaders];
+      const editable = allHeaders.filter(h => !EXCLUDED.includes(h) && (h !== 'ESTADO' || editingRowIdx !== -1));
+
+      const layoutRows = [
+        { type: 'form-grid', fields: ['AUTORIDAD', 'TAREAS'] },
+        { type: 'form-row-flex', fields: ['SEXO', 'DNI', 'NOMBRES', 'APELLIDOS'] },
+        { type: 'form-row-flex', fields: ['FECHA ALTA', 'FECHA DE ALTA', 'TOTAL', 'CUOTA', 'REQ'] },
+        { type: 'form-row-flex', fields: ['SECRETARIO', 'CORREO SECRETARIO', 'CORREO LOCADOR'] },
+        { type: 'form-row-flex', fields: ['DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'FECHA DE BAJA'] },
+        { type: 'form-row-flex', fields: ['AUTOR', [ESTADO]] }
+        // { type: 'form-row-flex', fields: ['ESTADO'] }
+      ];
+
+      const classMap = {
+        'AUTORIDAD': 'col-2',
+        'TAREAS': 'col-2',
+        'SEXO': 'w-sexo',
+        'DNI': 'w-dni',
+        'NOMBRES': 'w-flex',
+        'APELLIDOS': 'w-flex',
+        'FECHA ALTA': 'w-fecha',
+        'FECHA DE ALTA': 'w-fecha',
+        'TOTAL': 'w-total',
+        'CUOTA': 'w-cuota',
+        'REQ': 'w-req',
+        'SECRETARIO': 'w-flex',
+        'CORREO SECRETARIO': 'w-flex',
+        'CORREO LOCADOR': 'w-flex',
+        'DOMICILIO': 'w-flex',
+        'LOCALIDAD': 'w-flex',
+        'FECHA BAJA': 'w-fecha',
+        'FECHA DE BAJA': 'w-fecha',
+        'AUTOR': 'w-autor',
+        'ESTADO': 'w-flex'
+      };
+
+      const fieldDivs = {};
+      editable.forEach(h => {
+        const div = document.createElement('div');
+        div.className = 'form-group ' + (classMap[h] || 'w-flex');
+        const label = document.createElement('label');
+        label.textContent = h + ':';
+        label.setAttribute('for', h);
+        div.appendChild(label);
+
+        let input;
+        if (CONFIG.SELECT_COLUMNS[h]) {
+          if (h === 'AUTORIDAD') {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'input-with-buttons';
+
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'action-buttons';
+
+            const select = document.createElement('select');
+            CONFIG.SELECT_COLUMNS[h].forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; select.appendChild(o); });
+            select.style.flex = '1';
+            select.style.minWidth = '0';
+            select.onchange = () => {
+              const autoridadValue = select.value.trim().toUpperCase();
+              const info = autoridadesConfig[autoridadValue] || { secretario: '', correo: '' };
+              const secInput = document.getElementById('SECRETARIO');
+              const mailInput = document.getElementById('CORREO SECRETARIO');
+              if (secInput) secInput.value = info.secretario || '';
+              if (mailInput) mailInput.value = info.correo || '';
+              document.getElementById('hidden_SEC').value = info.secretario || '';
+              document.getElementById('hidden_MAIL').value = info.correo || '';
+            };
+            select.id = h;
+            select.name = h;
+
+            // Botones de acción: 🔁, ✎, 🗑
+            const btnRefresh = document.createElement('button');
+            btnRefresh.type = 'button';
+            btnRefresh.innerHTML = '&#128259;'; // o icono
+            btnRefresh.className = 'btn-action gray';
+            btnRefresh.title = 'Actualizar lista desde el servidor';
+            btnRefresh.onclick = (e) => {
+              e.preventDefault();
+              showMessage('Actualizando autoridades...', false);
+              refreshAutoridadesSelect(select.value);
+            };
+
+            const btnEdit = document.createElement('button');
+            btnEdit.type = 'button';
+            btnEdit.textContent = '✎';
+            btnEdit.className = 'btn-action blue';
+            btnEdit.title = 'Editar autoridad';
+            btnEdit.onclick = (e) => {
+              e.preventDefault();
+              const selected = select.value.trim();
+              if (!selected) {
+                alert('Selecciona una autoridad primero');
+                return;
+              }
+              const info = autoridadesConfig[selected] || {};
+              openAutoridadEditDialog(selected, info);
+            };
+
+            const btnDelete = document.createElement('button');
+            btnDelete.type = 'button';
+            btnDelete.textContent = '🗑';
+            btnDelete.className = 'btn-action red';
+            btnDelete.title = 'Eliminar autoridad';
+            btnDelete.onclick = (e) => {
+              e.preventDefault();
+              const selected = select.value.trim();
+              if (!selected) {
+                alert('Selecciona una autoridad primero');
+                return;
+              }
+              if (confirm('¿Eliminar autoridad "' + selected + '"?')) {
+                google.script.run
+                  .withSuccessHandler(r => {
+                    if (r.success) {
+                      showMessage(r.message, false);
+                      refreshAutoridadesSelect();
+                    } else {
+                      alert('Error: ' + r.message);
+                    }
+                  })
+                  .deleteAutoridadConfig(selected);
+              }
+            };
+
+            btnContainer.appendChild(btnEdit);
+            btnContainer.appendChild(btnDelete);
+            btnContainer.appendChild(btnRefresh);
+            wrapper.appendChild(select);
+            wrapper.appendChild(btnContainer);
+            input = wrapper;
+          } else if (h === 'TAREAS') {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'input-with-buttons';
+
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'action-buttons';
+
+            const select = document.createElement('select');
+            CONFIG.SELECT_COLUMNS[h].forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; select.appendChild(o); });
+            select.style.flex = '1';
+            select.style.minWidth = '0';
+            select.id = h;
+            select.name = h;
+
+            // Botones de acción: +, 🔁, ✎, 🗑
+            const btnAdd = document.createElement('button');
+            btnAdd.type = 'button';
+            btnAdd.textContent = '+';
+            btnAdd.className = 'btn-action green';
+            btnAdd.title = 'Agregar tarea';
+            btnAdd.onclick = (e) => {
+              e.preventDefault();
+              const newTarea = prompt('Nueva tarea:');
+              if (newTarea && newTarea.trim()) {
+                google.script.run
+                  .withSuccessHandler(r => {
+                    if (r.success) {
+                      showMessage('Tarea agregada', false);
+                      refreshTareasSelect(newTarea.trim());
+                    } else {
+                      alert('Error: ' + r.message);
+                    }
+                  })
+                  .addTareaConfig(newTarea.trim());
+              }
+            };
+
+            const btnRefresh = document.createElement('button');
+            btnRefresh.type = 'button';
+            btnRefresh.innerHTML = '&#128259;';
+            btnRefresh.className = 'btn-action gray';
+            btnRefresh.title = 'Actualizar lista desde el servidor';
+            btnRefresh.onclick = (e) => {
+              e.preventDefault();
+              showMessage('Actualizando tareas...', false);
+              refreshTareasSelect(select.value);
+            };
+
+            const btnEdit = document.createElement('button');
+            btnEdit.type = 'button';
+            btnEdit.textContent = '✎';
+            btnEdit.className = 'btn-action blue';
+            btnEdit.title = 'Editar tarea';
+            btnEdit.onclick = (e) => {
+              e.preventDefault();
+              const currentVal = select.value.trim();
+              if (!currentVal) {
+                alert('Selecciona una tarea primero');
+                return;
+              }
+              const newTarea = prompt('Editar tarea:', currentVal);
+              if (newTarea && newTarea.trim()) {
+                google.script.run
+                  .withSuccessHandler(r => {
+                    if (r.success) {
+                      showMessage('Tarea actualizada', false);
+                      refreshTareasSelect(newTarea.trim());
+                    } else {
+                      alert('Error: ' + r.message);
+                    }
+                  })
+                  .updateTareaConfig(currentVal, newTarea.trim());
+              }
+            };
+
+            const btnDelete = document.createElement('button');
+            btnDelete.type = 'button';
+            btnDelete.textContent = '🗑';
+            btnDelete.className = 'btn-action red';
+            btnDelete.title = 'Eliminar tarea';
+            btnDelete.onclick = (e) => {
+              e.preventDefault();
+              const currentVal = select.value.trim();
+              if (!currentVal) {
+                alert('Selecciona una tarea primero');
+                return;
+              }
+              if (confirm('¿Eliminar tarea?')) {
+                google.script.run
+                  .withSuccessHandler(r => {
+                    if (r.success) {
+                      showMessage('Tarea eliminada', false);
+                      refreshTareasSelect();
+                    } else {
+                      alert('Error: ' + r.message);
+                    }
+                  })
+                  .deleteTareaConfig(currentVal);
+              }
+            };
+
+            btnContainer.appendChild(btnAdd);
+            btnContainer.appendChild(btnEdit);
+            btnContainer.appendChild(btnDelete);
+            btnContainer.appendChild(btnRefresh);
+            wrapper.appendChild(select);
+            wrapper.appendChild(btnContainer);
+            input = wrapper;
+          } else {
+            input = document.createElement('select');
+            CONFIG.SELECT_COLUMNS[h].forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; input.appendChild(o); });
+          }
+        } else {
+          input = document.createElement('input');
+          input.type = CONFIG.DATE_COLUMNS.includes(h) ? 'date' : (CONFIG.NUMBER_COLUMNS.includes(h) ? 'number' : 'text');
+
+          if (h === 'DNI' || h === 'TOTAL') {
+            input.maxLength = 8;
+            input.addEventListener('input', function () {
+              this.value = this.value.replace(/[^0-9]/g, '').slice(0, 8);
+            });
+          }
+
+          if (h === 'REQ') {
+            input.maxLength = 5;
+            input.addEventListener('input', function () {
+              this.value = this.value.replace(/[^0-9]/g, '').slice(0, 5);
+            });
+          }
+
+          if (h === 'FECHA ALTA') {
+            input.addEventListener('change', function () {
+              if (this.value) {
+                const parts = this.value.split('-');
+                if (parts.length === 3 && parts[2] !== '01') {
+                  this.value = `${parts[0]}-${parts[1]}-01`;
+                  if (typeof showMessage === 'function') showMessage('La fecha de alta ha sido ajustada al día 1 del mes.', false);
+                }
+              }
+            });
+          }
+        }
+        if (input.tagName !== 'DIV') {
+          input.id = h;
+          input.name = h;
+        }
+        if (rowData[h] !== undefined) {
+          const targetInput = input.tagName === 'DIV' ? input.querySelector('input, select, textarea') : input;
+          if (targetInput) {
+            if (CONFIG.SELECT_COLUMNS[h]) {
+              const valStr = String(rowData[h]);
+              const valToMatch = valStr.trim().toLowerCase();
+              let matched = false;
+              Array.from(targetInput.options).forEach(opt => {
+                if (opt.value.trim().toLowerCase() === valToMatch) {
+                  opt.selected = true;
+                  matched = true;
+                }
+              });
+              if (!matched && valStr.trim() !== '' && valStr !== 'undefined') {
+                const customOpt = document.createElement('option');
+                customOpt.value = valStr;
+                customOpt.textContent = valStr;
+                customOpt.selected = true;
+                targetInput.appendChild(customOpt);
+              }
+            } else {
+              // Intenta obtener el valor por el nombre exacto o por alias común
+              let finalVal = rowData[h];
+              if (finalVal === undefined || finalVal === '') {
+                if (h === 'FECHA ALTA') finalVal = rowData['FECHA DE ALTA'];
+                if (h === 'FECHA BAJA') finalVal = rowData['FECHA DE BAJA'];
+              }
+
+              if (CONFIG.DATE_COLUMNS.includes(h) && finalVal) {
+                finalVal = formatDateForInput(finalVal);
+                if (h === 'FECHA ALTA') console.log("Diagnóstico FECHA ALTA:", { original: rowData[h], rowData: rowData, final: finalVal });
+              }
+              targetInput.value = finalVal || '';
+            }
+          }
+        }
+        div.appendChild(input);
+        fieldDivs[h] = div;
+      });
+
+      const groupedFields = new Set();
+      layoutRows.forEach(row => {
+        const rowCtr = document.createElement('div');
+        rowCtr.className = row.type;
+        let added = false;
+        row.fields.forEach(h => {
+          if (fieldDivs[h]) {
+            rowCtr.appendChild(fieldDivs[h]);
+            groupedFields.add(h);
+            added = true;
+          }
+        });
+        if (added) {
+          formFields.appendChild(rowCtr);
+        }
+      });
+
+      // Añadir cualquier campo dinámico que no esté en el layout predefinido
+      editable.forEach(h => {
+        if (!groupedFields.has(h) && fieldDivs[h]) {
+          const extraRow = document.createElement('div');
+          extraRow.className = 'form-row-flex';
+          extraRow.appendChild(fieldDivs[h]);
+          formFields.appendChild(extraRow);
+        }
+      });
+
+      const s = document.createElement('input'); s.type = 'hidden'; s.id = 'hidden_SEC'; s.value = rowData['SECRETARIO'] || ''; formFields.appendChild(s);
+      const m = document.createElement('input'); m.type = 'hidden'; m.id = 'hidden_MAIL'; m.value = rowData['CORREO SECRETARIO'] || ''; formFields.appendChild(m);
+
+      // Aplicar visibilidad según tipo de nota al abrir el modal
+      applyNotaFieldVisibility(tipoNotaSelect ? tipoNotaSelect.value : '');
+    }
+
+    // Campos que se deben mostrar según el tipo de nota seleccionado
+    const CAMPOS_POR_NOTA = {
+      'Nota Alta Senado': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'TOTAL', 'CUOTA', 'TAREAS', 'FECHA ALTA', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Nota Alta Vice': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'TOTAL', 'CUOTA', 'TAREAS', 'FECHA ALTA', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Nota Baja Senado': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'REQ', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Nota Baja Vice': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'REQ', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Prórroga Senado': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CUOTA', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Prórroga Vice': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CUOTA', 'AUTORIDAD', 'AUTOR', 'SEXO', 'ESTADO', 'CORREO SECRETARIO', 'SECRETARIO'],
+      'Nota DDJJ': ['NOMBRES', 'APELLIDOS', 'DNI', 'DOMICILIO', 'LOCALIDAD', 'CORREO LOCADOR', 'AUTOR', 'ESTADO'],
+    };
+
+    function applyNotaFieldVisibility(tipoNota) {
+      const campos = CAMPOS_POR_NOTA[tipoNota];
+      // Sin selecισn: mostrar todo
+      formFields.querySelectorAll('.form-group').forEach(div => {
+        const input = div.querySelector('input, select, textarea');
+        if (!input || !input.name) return;
+        if (!campos) {
+          div.style.display = '';
+        } else {
+          div.style.display = campos.includes(input.name) ? '' : 'none';
+        }
+      });
+      // Ocultar contenedores de fila (form-row-2col / form-row-3col) si todos sus hijos están ocultos
+      formFields.querySelectorAll('.form-row-2col, .form-row-3col').forEach(row => {
+        const allHidden = Array.from(row.querySelectorAll('.form-group')).every(d => d.style.display === 'none');
+        row.style.display = allHidden ? 'none' : '';
+      });
+    }
+
+    function getFormData() {
+      const fd = {};
+      formFields.querySelectorAll('input, select').forEach(i => { if (i.name) fd[i.name] = i.value; });
+      if (editingRowIdx === -1) { fd['CHECK'] = true; fd['ESTADO'] = 'Pendiente'; }
+
+      // Si el modal no generó inputs visibles para Secretario/Correo (ej: por estar excluidos), usar los hidden_SEC/MAIL como fallback
+      if (fd['SECRETARIO'] === undefined) {
+        fd['SECRETARIO'] = document.getElementById('hidden_SEC') ? document.getElementById('hidden_SEC').value : '';
+      }
+      if (fd['CORREO SECRETARIO'] === undefined) {
+        fd['CORREO SECRETARIO'] = document.getElementById('hidden_MAIL') ? document.getElementById('hidden_MAIL').value : '';
+      }
+      return fd;
+    }
+
+    function handleEditClick(originalIdx) {
+      editingRowIdx = originalIdx;
+      modalTitle.textContent = 'Editar Registro... (Sincronizando)';
+      if (btnRenovarContrato) btnRenovarContrato.style.display = 'inline-block';
+      if (tipoNotaSelect) tipoNotaSelect.value = '';
+      if (sexoNotaSelect) sexoNotaSelect.value = '';
+
+      // Buscar el ID real del registro
+      const rowIdxInArray = originalData.findIndex(r => r[currentHeaders.length + hiddenHeaders.length] === originalIdx);
+      if (rowIdxInArray === -1) return;
+      const recordId = originalData[rowIdxInArray][0]; // El ID está en la primera columna
+
+      // Sincronización de última hora antes de abrir el modal
+      google.script.run
+        .withSuccessHandler(response => {
+          if (response.success && response.data.length > 0) {
+            const freshRow = response.data[0];
+            // Actualizar originalData con la versión más reciente del Sheet
+            originalData[rowIdxInArray] = freshRow;
+            modalTitle.textContent = 'Editar Registro';
+            const obj = {};
+            const hs = [...currentHeaders, ...hiddenHeaders];
+            hs.forEach((h, i) => obj[h] = freshRow[i]);
+            generateFormFields(obj);
+            showModal(dataModal);
+            // Cuando se cambia el tipo de nota, actualizar campos visibles
+            if (tipoNotaSelect) {
+              tipoNotaSelect.onchange = () => applyNotaFieldVisibility(tipoNotaSelect.value);
+            }
+          } else {
+            console.warn("No se pudo sincronizar el registro, usando datos locales.");
+            const row = originalData[rowIdxInArray];
+            modalTitle.textContent = 'Editar Registro';
+            const obj = {};
+            const hs = [...currentHeaders, ...hiddenHeaders];
+            hs.forEach((h, i) => obj[h] = row[i]);
+            generateFormFields(obj);
+            showModal(dataModal);
+            // Cuando se cambia el tipo de nota, actualizar campos visibles
+            if (tipoNotaSelect) {
+              tipoNotaSelect.onchange = () => applyNotaFieldVisibility(tipoNotaSelect.value);
+            }
+          }
+        })
+        .withFailureHandler(err => {
+          console.error("Error en sincronización rápida:", err);
+          const row = originalData[rowIdxInArray];
+          modalTitle.textContent = 'Editar Registro';
+          const obj = {};
+          const hs = [...currentHeaders, ...hiddenHeaders];
+          hs.forEach((h, i) => obj[h] = row[i]);
+          generateFormFields(obj);
+          showModal(dataModal);
+          // Cuando se cambia el tipo de nota, actualizar campos visibles
+          if (tipoNotaSelect) {
+            tipoNotaSelect.onchange = () => applyNotaFieldVisibility(tipoNotaSelect.value);
+          }
+        })
+        .getLatestDataByIDs([recordId]);
+    }
+
+    /**
+     * Función Evaluadora y Comparadora: verifica que registros cargados no tengan campos críticos vacíos
+     */
+    function checkDataIntegrity() {
+      if (!originalData.length) return;
+
+      const idsWithIssues = originalData.filter(r => {
+        const fechaAlta = r[currentHeaders.indexOf('FECHA ALTA')];
+        return !fechaAlta || String(fechaAlta).trim() === '';
+      }).map(r => r[0]);
+
+      if (idsWithIssues.length > 0) {
+        console.log("Iniciando reparación de integridad para " + idsWithIssues.length + " registros...");
+        google.script.run
+          .withSuccessHandler(response => {
+            if (response.success && response.data.length > 0) {
+              response.data.forEach(freshRow => {
+                const freshId = freshRow[0];
+                const localIdx = originalData.findIndex(r => String(r[0]) === String(freshId));
+                if (localIdx !== -1) {
+                  originalData[localIdx] = freshRow;
+                }
+              });
+              // Refrescar tabla si estamos en la primera página
+              if (currentPage === 1) renderTable(currentHeaders, filteredData);
+              updateSyncStatus('success');
+            }
+          })
+          .getLatestDataByIDs(idsWithIssues);
+      } else {
+        updateSyncStatus('success');
+      }
+    }
+
+    if (btnRenovarContrato) {
+      btnRenovarContrato.onclick = () => {
+        editingRowIdx = -1;
+        modalTitle.textContent = 'Agregar Registro/Crear Notas (Renovación)';
+
+        // Poner estado en Pendiente
+        const selectEstado = document.getElementById('ESTADO');
+        if (selectEstado) {
+          selectEstado.value = 'Pendiente';
+          const event = new Event('change', { bubbles: true });
+          selectEstado.dispatchEvent(event);
+        }
+
+        btnRenovarContrato.style.display = 'none';
+
+        showMessage('Datos copiados. Configure las fechas y requisitos. Luego presione Guardar.', false);
+      };
+    }
+
+    function handleDeleteClick(originalIdx) {
+      rowToDeleteIdx = originalIdx;
+      showModal(confirmModal);
+    }
+
+    function handlePreviewFile(rowData, type) {
+      const obj = {};
+      [...currentHeaders, ...hiddenHeaders].forEach((h, i) => obj[h] = rowData[i]);
+      showMessage('Buscando archivo...');
+
+      // Abrir la pestaña de forma síncrona aquí evita que el navegador la bloquee por ser un "popup" asíncrono
+      const previewWindow = window.open('', '_blank');
+      if (previewWindow) {
+        previewWindow.document.write('Cargando previsualización, por favor espere...');
+      }
+
+      google.script.run
+        .withSuccessHandler(r => {
+          if (r.success) {
+            if (previewWindow) {
+              previewWindow.location.href = r.url;
+            } else {
+              window.open(r.url, '_blank'); // fallback
+            }
+          } else {
+            if (previewWindow) previewWindow.close();
+            showMessage(r.message, true);
+          }
+        })
+        .withFailureHandler(e => {
+          if (previewWindow) previewWindow.close();
+          showMessage('Error al conectar: ' + e.message, true);
+        })
+        .getFilePreviewUrl(obj, type);
+    }
+
+    confirmDeleteButton.onclick = () => {
+      google.script.run.withSuccessHandler(r => { if (r.success) { showMessage(r.message); closeAllModals(); loadData(); } else showMessage(r.message, true); }).deleteRow(rowToDeleteIdx);
+    };
+
+    function resetGlobalActionModal() {
+      // Resetear estado del modal sin mostrarlo
+      const actionContainer = document.getElementById('actionSelectionContainer');
+      const progressContainer = document.getElementById('progressDisplay');
+      const resultContainer = document.getElementById('resultDisplay');
+
+      if (actionContainer) actionContainer.style.display = 'block';
+      if (progressContainer) progressContainer.style.display = 'none';
+      if (resultContainer) resultContainer.style.display = 'none';
+
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('progressPercent').textContent = '0%';
+      document.getElementById('progressStatus').textContent = 'Preparando...';
+      document.getElementById('executeGlobalActionButton').disabled = false;
+      document.getElementById('executeGlobalActionButton').style.opacity = '1';
+      document.getElementById('cancelGlobalActionButton').textContent = 'Cancelar';
+      document.getElementById('cancelGlobalActionButton').style.display = 'block';
+    }
+
+    function openGlobalActionModal() {
+      resetGlobalActionModal();
+
+      if (globalActionSelect.options.length <= 1) {
+        ['Contrato', 'Resolución', 'Baja', 'Notificación'].forEach(v => {
+          const opt = document.createElement('option'); opt.value = v; opt.textContent = v; globalActionSelect.appendChild(opt);
+        });
+      }
+      showModal(globalActionModal);
+    }
+
+    let isRunning = false; // Flag para evitar ejecuciones concurrentes
+
+    executeGlobalActionButton.onclick = async () => {
+      if (isRunning) return; // Evitar doble click
+      const type = globalActionSelect.value;
+      if (!type) return showMessage('Selecciona acción', true);
+
+      // Encontrar índices a procesar (CHECK destildado)
+      const checkIdx = currentHeaders.indexOf('CHECK');
+      const rowsToProcess = originalData.filter(row => {
+        const val = row[checkIdx];
+        return (val === false || val === '' || val === null || val === undefined || val === 'FALSE');
+      });
+
+      if (rowsToProcess.length === 0) {
+        alert("No hay registros seleccionados para procesar. Por favor, DESMARCA (destilda) la casilla 'CHECK' de las filas que deseas procesar y luego usa este botón.");
+        return showMessage("No hay registros sin procesar (CHECK destildado).", true);
+      }
+
+      // Validación para el campo REQ en caso de acción "Baja" o "Resolución"
+      if (type === 'Baja' || type === 'Resolución') {
+        const allHeaders = [...currentHeaders, ...hiddenHeaders];
+        const reqIdx = allHeaders.indexOf('REQ');
+        if (reqIdx !== -1) {
+          const rowsMissingReq = rowsToProcess.filter(row => !row[reqIdx] || String(row[reqIdx]).trim() === '');
+          if (rowsMissingReq.length > 0) {
+            alert(`No se puede procesar la acción "${type}" porque hay ${rowsMissingReq.length} registro(s) que no tienen el número de REQUERIMIENTO (REQ).`);
+            return;
+          }
+        }
+      }
+
+      // Preparar UI del modal para progreso
+      const actionSelectionContainer = document.getElementById('actionSelectionContainer');
+      const progressDisplay = document.getElementById('progressDisplay');
+      const progressBar = document.getElementById('progressBar');
+      const progressStatus = document.getElementById('progressStatus');
+      const progressPercent = document.getElementById('progressPercent');
+
+      // Limpiar resultados previos
+      let resultDisplay = document.getElementById('resultDisplay');
+      if (resultDisplay) resultDisplay.style.display = 'none';
+
+      isRunning = true;
+      actionSelectionContainer.style.display = 'none';
+      progressDisplay.style.display = 'block';
+      executeGlobalActionButton.disabled = true;
+      executeGlobalActionButton.style.opacity = '0.5';
+      cancelGlobalActionButton.style.display = 'none';
+
+      let successCount = 0;
+      let errorCount = 0;
+      let errorsDetails = [];
+      const total = rowsToProcess.length;
+
+      for (let i = 0; i < total; i++) {
+        const row = rowsToProcess[i];
+        const originalIdx = row[currentHeaders.length + hiddenHeaders.length];
+        const rowName = row[3] + " " + row[2]; // NOMBRES APELLIDOS
+
+        progressStatus.textContent = `Procesando (${i + 1}/${total}): ${rowName}`;
+
+        try {
+          // Llamada individual para cada fila
+          const result = await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .executeAction(originalIdx, type);
+          });
+
+          if (result.success) {
+            successCount++;
+          } else {
+            errorCount++;
+            errorsDetails.push("<b>" + rowName + ":</b> " + (result.message || "Error crítico desconocido"));
+          }
+        } catch (err) {
+          console.error(`Error en fila ${originalIdx}:`, err);
+          errorCount++;
+          errorsDetails.push("<b>" + rowName + ":</b> Excepción de red/Apps Script - " + (err.message || 'Desconocido'));
+        }
+
+        // Actualizar barra de progreso
+        const percent = Math.round(((i + 1) / total) * 100);
+        progressBar.style.width = percent + '%';
+        progressPercent.textContent = percent + '%';
+      }
+
+      // Finalizar: mostrar resultados y boton Cerrar
+      isRunning = false;
+      resultDisplay = document.getElementById('resultDisplay');
+      document.getElementById('successCountText').textContent = successCount;
+      document.getElementById('errorCountText').textContent = errorCount;
+
+      // Mostrar lista de errores
+      let errorDetailsContainer = document.getElementById('errorDetailsContainer');
+      if (!errorDetailsContainer) {
+        errorDetailsContainer = document.createElement('div');
+        errorDetailsContainer.id = 'errorDetailsContainer';
+        errorDetailsContainer.style.marginTop = '10px';
+        errorDetailsContainer.style.maxHeight = '150px';
+        errorDetailsContainer.style.overflowY = 'auto';
+        errorDetailsContainer.style.color = '#b91c1c'; // Rojo más oscuro
+        errorDetailsContainer.style.fontSize = '0.75rem';
+        errorDetailsContainer.style.borderTop = '1px solid #e2e8f0';
+        errorDetailsContainer.style.paddingTop = '5px';
+        resultDisplay.appendChild(errorDetailsContainer);
+      }
+
+      if (errorsDetails.length > 0) {
+        errorDetailsContainer.innerHTML = '<strong>Detalle de Errores:</strong><br/>' + errorsDetails.join('<br/><br/>');
+        errorDetailsContainer.style.display = 'block';
+      } else {
+        errorDetailsContainer.style.display = 'none';
+      }
+
+      resultDisplay.style.display = 'block';
+
+      progressStatus.textContent = '¡Completado!';
+
+      // El botón "Cerrar" resetea el modal y cierra
+      cancelGlobalActionButton.textContent = 'Cerrar';
+      cancelGlobalActionButton.style.display = 'block';
+
+      // Recargar datos de la tabla
+      loadData();
+    };
+
+    loadData();
+    google.script.run.withSuccessHandler(r => { if (r.success) auxDataMap = r.data; }).getAuxData();
+
+    // Obtener rol del usuario actual para verificar permisos
+    google.script.run.withSuccessHandler(r => {
+      currentUserRole = r.role;
+      console.log("Rol del usuario: " + currentUserRole);
+    }).getUserRoleForFrontend();
+
+    // Iniciar auto-sincronización
+    startAutoSync();
+  });
+
+  // --- MODAL GESTIÓN DE AUTORIDADES ---
+  function openAutoridadAddDialog() {
+    const apellido = prompt('Apellido (ej: SERRA)');
+    if (!apellido) return;
+
+    const nombreCompleto = prompt('Nombre completo');
+    if (!nombreCompleto) return;
+
+    const secretario = prompt('Secretario/a');
+    if (!secretario) return;
+
+    const correo = prompt('Correo del secretario');
+    if (!correo) return;
+
+    google.script.run
+      .withSuccessHandler(r => {
+        if (r.success) {
+          showMessage('Autoridad agregada: ' + apellido, false);
+          refreshAutoridadesSelect();
+        } else {
+          alert('Error: ' + r.message);
+        }
+      })
+      .addAutoridadConfig(apellido.trim(), nombreCompleto.trim(), secretario.trim(), correo.trim());
+  }
+
+  function openAutoridadEditDialog(apellido, info) {
+    const newApellido = prompt('Nombre Autoridad (Apellido):', apellido || '');
+    if (newApellido === null) return;
+
+    const secretario = prompt('Secretario/a:', info.secretario || '');
+    if (secretario === null) return;
+
+    const correo = prompt('Correo:', info.correo || '');
+    if (correo === null) return;
+
+    if (!newApellido.trim() || !secretario.trim() || !correo.trim()) {
+      alert('Completa todos los campos');
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(r => {
+        if (r.success) {
+          showMessage('Autoridad actualizada', false);
+          refreshAutoridadesSelect(newApellido.trim().toUpperCase());
+        } else {
+          alert('Error: ' + r.message);
+        }
+      })
+      .updateAutoridadConfig(apellido, newApellido.trim(), secretario.trim(), correo.trim());
+  }
+
+
+</script>

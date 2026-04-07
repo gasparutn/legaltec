@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top">
+  <?!= include('Stylesheet'); ?>
+</head>
+
+<body>
+  <div class="header">
+    <h1 class="title">CONTROL DOCUS</h1>
+    <div class="controls">
+      <input type="text" id="searchInput" placeholder="Buscar..." class="search-input">
+      <button id="backToMainButton" class="add-button">Volver a la Planilla Principal</button>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table id="notificationsTable" class="data-table">
+      <thead>
+        <tr id="tableHeaders">
+          <!-- Los encabezados se cargarán aquí por JavaScript -->
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <!-- Los datos se cargarán aquí por JavaScript -->
+      </tbody>
+    </table>
+  </div>
+
+  <div id="loading" class="loading-spinner" style="display: none;">Cargando notificaciones...</div>
+  <div id="message" class="message-area"></div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchInput = document.getElementById('searchInput');
+      const tableBody = document.getElementById('tableBody');
+      const tableHeadersRow = document.getElementById('tableHeaders');
+      const loadingSpinner = document.getElementById('loading');
+      const messageArea = document.getElementById('message');
+      const backToMainButton = document.getElementById('backToMainButton');
+
+      let originalNotificationsData = [];
+      let currentNotificationHeaders = [];
+
+      /**
+       * Muestra un mensaje al usuario en el área de mensajes.
+       * @param {string} msg - El mensaje a mostrar.
+       * @param {boolean} isError - True si es un mensaje de error, false si es de éxito/informativo.
+       */
+      function showMessage(msg, isError = false) {
+        if (messageArea) {
+          messageArea.textContent = msg;
+          messageArea.className = isError ? 'message-area error' : 'message-area';
+          setTimeout(() => messageArea.textContent = '', 5000);
+        } else {
+          console.warn('Advertencia: El elemento messageArea no se encontró en el DOM.');
+        }
+      }
+
+      /**
+       * Carga los datos de notificaciones desde la hoja de cálculo.
+       */
+      function loadNotificationsData() {
+        if (loadingSpinner) {
+          loadingSpinner.style.display = 'block';
+        }
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler(response => {
+              originalNotificationsData = response.data;
+              currentNotificationHeaders = response.headers;
+              renderNotificationsTable(currentNotificationHeaders, originalNotificationsData);
+              if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+              }
+            })
+            .withFailureHandler(error => {
+              console.error('Error al cargar datos de notificaciones:', error);
+              showMessage('Error al cargar las notificaciones: ' + error.message, true);
+              if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+              }
+            })
+            .getNotificationsData(); // Llama a la función renombrada en Code.gs
+        } else {
+          console.error('Error: google.script.run no está definido. Asegúrate de que la aplicación web esté desplegada y se acceda a través de su URL.');
+          showMessage('Error: La aplicación no se cargó correctamente. Asegúrate de que esté desplegada.', true);
+          if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+          }
+        }
+      }
+
+      /**
+       * Renderiza la tabla de notificaciones.
+       * @param {string[]} headers - Array de encabezados de columna.
+       * @param {Array<Array<any>>} data - Array de arrays, donde cada array interno es una fila de datos.
+       */
+      function renderNotificationsTable(headers, data) {
+        if (!tableHeadersRow || !tableBody) {
+          console.error('Error: Elementos de la tabla (tableHeadersRow o tableBody) no encontrados.');
+          return;
+        }
+        tableHeadersRow.innerHTML = '';
+        tableBody.innerHTML = '';
+
+        // Crear encabezados
+        headers.forEach(headerText => {
+          const th = document.createElement('th');
+          th.textContent = headerText;
+          tableHeadersRow.appendChild(th);
+        });
+
+        // Llenar el cuerpo de la tabla
+        data.forEach((rowData, rowIndex) => {
+          const tr = document.createElement('tr');
+          tr.dataset.rowIndex = rowIndex;
+
+          rowData.forEach((cellData, colIndex) => {
+            const td = document.createElement('td');
+            const headerName = headers[colIndex];
+
+            if (headerName === 'Acción Notificar') {
+              const notifyButton = document.createElement('button');
+              notifyButton.textContent = 'Notificar';
+              notifyButton.className = 'option-button primary'; // Usar clase primary para estilo
+              notifyButton.dataset.rowIndex = rowIndex;
+
+              // Obtener el estado de la notificación de la fila (asumiendo que está en la columna 'Estado')
+              const estadoIndex = headers.indexOf('Estado');
+              const currentStatus = rowData[estadoIndex];
+
+              // Deshabilitar el botón si el estado es 'Finalizado' o 'Error Notificación'
+              if (currentStatus === 'Finalizado' || currentStatus === 'Error Notificación') {
+                notifyButton.disabled = true;
+                notifyButton.textContent = currentStatus === 'Finalizado' ? 'Enviado' : 'Error';
+                notifyButton.style.backgroundColor = currentStatus === 'Finalizado' ? '#28a745' : '#dc3545'; // Verde para enviado, rojo para error
+              } else {
+                notifyButton.addEventListener('click', (event) => {
+                  event.stopPropagation(); // Evita que se active el onclick de la fila
+                  handleNotifyClick(rowIndex); // Pasa solo el índice de la fila
+                });
+              }
+              td.appendChild(notifyButton);
+            } else {
+              td.textContent = cellData;
+               // Aplicar clase CSS según el estado (definidas en Stylesheet.css)
+              if (headerName === 'Estado') {
+                switch (cellData) {
+                  case 'Pendiente':
+                    td.classList.add('status-pendiente');
+                    break;
+                  case 'Finalizado':
+                    td.classList.add('status-finalizado');
+                    break;
+                  case 'Proceso Nota':
+                  case 'Proceso Contrato':
+                  case 'Proceso Resolución':
+                    td.classList.add('status-proceso'); // Una clase genérica para procesos
+                    break;
+                  case 'Baja Ejecutada':
+                    td.classList.add('status-baja-ejecutada');
+                    break;
+                  case 'Error Notificación': // Nuevo estado para errores de notificación
+                    td.classList.add('status-error');
+                    break;
+                  default:
+                    // No añadir clase si el estado no coincide
+                    break;
+                }
+              }
+            }
+            tr.appendChild(td);
+          });
+          tableBody.appendChild(tr);
+        });
+      }
+
+      /**
+       * Manejador de clic para el botón "Notificar".
+       * @param {number} rowIndex - El índice de la fila en los datos actuales.
+       */
+      function handleNotifyClick(rowIndex) {
+        // Llama a la función del servidor para marcar como notificado,
+        // que a su vez llamará a executeAction con el tipo 'Notificación'.
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler(response => {
+              if (response.success) {
+                showMessage(response.message);
+                loadNotificationsData(); // Recargar datos para reflejar el cambio de estado
+              } else {
+                showMessage(response.message, true);
+              }
+            })
+            .withFailureHandler(error => {
+              console.error('Error al notificar:', error);
+              showMessage('Error al notificar: ' + error.message, true);
+            })
+            .markAsNotified(rowIndex, true); // Pasa true para indicar que se está notificando
+        } else {
+          console.error('Error: google.script.run no está definido al notificar.');
+          showMessage('Error: No se pudo conectar con el servidor para notificar.', true);
+        }
+      }
+
+      // Funcionalidad de búsqueda para la tabla de notificaciones
+      if (searchInput) {
+        searchInput.addEventListener('keyup', () => {
+          const searchTerm = searchInput.value.toLowerCase();
+          const filteredData = originalNotificationsData.filter(row =>
+            row.some(cell => String(cell).toLowerCase().includes(searchTerm))
+          );
+          renderNotificationsTable(currentNotificationHeaders, filteredData);
+        });
+      }
+
+      // Botón para volver a la planilla principal
+      if (backToMainButton) {
+        backToMainButton.addEventListener('click', () => {
+          // Usar la función del servidor para obtener la URL de la página principal
+          if (typeof google !== 'undefined' && google.script && google.script.run) {
+            google.script.run
+              .withSuccessHandler(url => {
+                window.location.href = url;
+              })
+              .withFailureHandler(error => {
+                console.error('Error al obtener la URL de la página principal:', error);
+                showMessage('Error al volver a la página principal: ' + error.message, true);
+              })
+              .getMainPageUrl(); // Llama a la nueva función en Code.gs
+          } else {
+            console.error('Error: google.script.run no está definido al intentar volver a la página principal.');
+            showMessage('Error: No se pudo conectar con el servidor para la navegación.', true);
+          }
+        });
+      }
+
+      // Carga inicial de datos de notificaciones
+      loadNotificationsData();
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control Docus — Mi Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    .header { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header h1 { font-size: 1.1rem; font-weight: 700; color: #f8fafc; }
+    .badge { font-size: 0.7rem; background: #3b82f6; color: white; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .user-info { font-size: 0.82rem; color: #94a3b8; }
+    .btn-logout { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-family: 'Inter', sans-serif; }
+    .btn-logout:hover { background: rgba(239,68,68,0.25); }
+    .main { padding: 28px; max-width: 1100px; margin: 0 auto; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .top-bar h2 { font-size: 1rem; font-weight: 600; color: #cbd5e1; }
+    .btn-primary { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 0.875rem; font-weight: 600; font-family: 'Inter', sans-serif; }
+    .btn-primary:hover { opacity: 0.9; }
+    .req-grid { display: flex; flex-direction: column; gap: 16px; }
+    .req-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; overflow: hidden; }
+    .req-card:hover { border-color: rgba(59,130,246,0.35); }
+    .req-card-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; cursor: pointer; }
+    .req-card-title { font-weight: 600; font-size: 0.95rem; color: #f1f5f9; }
+    .req-card-sub { font-size: 0.78rem; color: #64748b; margin-top: 2px; }
+    .req-card-right { display: flex; align-items: center; gap: 12px; }
+    .progress-pill { font-size: 0.75rem; font-weight: 600; background: rgba(59,130,246,0.15); color: #93c5fd; padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(59,130,246,0.3); }
+    .progress-pill.completo { background: rgba(16,185,129,0.15); color: #6ee7b7; border-color: rgba(16,185,129,0.3); }
+    .venc-pill { font-size: 0.72rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+    .venc-ok   { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+    .venc-warn { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+    .venc-vencido { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+    .btn-pdf { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.78rem; font-family: 'Inter', sans-serif; font-weight: 600; }
+    .chevron { font-size: 0.9rem; color: #64748b; transition: transform 0.2s; }
+    .chevron.open { transform: rotate(180deg); }
+    .progress-bar-wrap { padding: 0 20px 6px; }
+    .progress-bar-bg { background: rgba(255,255,255,0.06); border-radius: 4px; height: 4px; }
+    .progress-bar-fill { height: 4px; border-radius: 4px; background: linear-gradient(90deg, #3b82f6, #8b5cf6); transition: width 0.4s; }
+    .docs-table-wrap { padding: 0 20px 20px; display: none; }
+    .docs-table-wrap.open { display: block; }
+    .docs-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    .docs-table th { text-align: left; padding: 8px 10px; color: #64748b; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.06em; }
+    .docs-table td { padding: 10px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+    .docs-table tr:last-child td { border-bottom: none; }
+    .estado-badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; }
+    .est-pendiente { background: rgba(100,116,139,0.15); color: #94a3b8; }
+    .est-cargado   { background: rgba(59,130,246,0.15); color: #93c5fd; }
+    .est-aprobado  { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+    .est-rechazado { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .obs-rechazo { margin-top: 4px; font-size: 0.75rem; color: #fca5a5; background: rgba(239,68,68,0.08); padding: 4px 8px; border-radius: 6px; }
+    .doc-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .btn-sm { font-size: 0.75rem; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 600; border: none; }
+    .btn-sm:hover { opacity: 0.82; }
+    .btn-upload { background: #3b82f6; color: white; }
+    .btn-delete { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3) !important; }
+    .btn-view   { background: rgba(100,116,139,0.2); color: #cbd5e1; }
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; }
+    .overlay.open { display: flex; }
+    .modal-box { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; width: 100%; max-width: 440px; box-shadow: 0 25px 60px rgba(0,0,0,0.5); }
+    .modal-box h3 { font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 20px; }
+    .modal-box label { font-size: 0.78rem; color: #94a3b8; font-weight: 500; text-transform: uppercase; display: block; margin-bottom: 5px; margin-top: 14px; }
+    .modal-box input { width: 100%; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 9px; padding: 10px 14px; color: #f1f5f9; font-size: 0.9rem; font-family: 'Inter', sans-serif; outline: none; }
+    .modal-box input:focus { border-color: #3b82f6; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+    .btn-cancel { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 10px; border-radius: 9px; cursor: pointer; font-family: 'Inter', sans-serif; }
+    .btn-confirm { flex: 2; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; padding: 10px; border-radius: 9px; cursor: pointer; font-weight: 600; font-family: 'Inter', sans-serif; }
+    .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+    #loading-main { text-align: center; padding: 60px; color: #64748b; }
+    .msg { padding: 10px 14px; border-radius: 8px; font-size: 0.83rem; margin-bottom: 14px; }
+    .msg-err { background: rgba(239,68,68,0.1); color: #fca5a5; border: 1px solid rgba(239,68,68,0.2); }
+    .msg-ok  { background: rgba(16,185,129,0.1); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.2); }
+    
+    /* Previsualización PDF */
+    .preview-modal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.95); backdrop-filter: blur(8px); z-index: 1000; flex-direction: column; }
+    .preview-modal.open { display: flex; }
+    .preview-header { 
+      background: #1e293b; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .preview-actions { display: flex; gap: 14px; }
+    .btn-action-view { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 6px; }
+    .btn-action-view:hover { background: rgba(255,255,255,0.15); }
+    .btn-close-prev { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; }
+    
+    iframe#iframePreview { flex: 1; border: none; width: 100%; height: 100%; background: #1a1a1a; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-left">
+      <span style="font-size:1.4rem;">📋</span>
+      <div>
+        <h1>Control Docus</h1>
+        <div class="user-info" id="nombreUsuario">Cargando...</div>
+      </div>
+      <span class="badge">Usuario</span>
+    </div>
+    <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
+  </div>
+
+  <div class="main">
+    <div id="globalMsg"></div>
+    <div class="top-bar">
+      <h2>Mis Requerimientos</h2>
+      <button class="btn-primary" onclick="abrirModalNuevo()">+ Nuevo Requerimiento</button>
+    </div>
+    <div id="loading-main">Cargando requerimientos...</div>
+    <div class="req-grid" id="reqGrid"></div>
+  </div>
+
+  <!-- Modal: Nuevo Requerimiento -->
+  <div class="overlay" id="modalNuevo">
+    <div class="modal-box">
+      <h3>📄 Nuevo Requerimiento</h3>
+      <label>Apellido y Nombre del contratado</label>
+      <input type="text" id="inputNombre" placeholder="Ej: García, Juan Carlos">
+      <label>Autoridad solicitante</label>
+      <input type="text" id="inputAutoridad" placeholder="Ej: Senador Rodríguez">
+      <div id="nuevoMsg"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="cerrarModal('modalNuevo')">Cancelar</button>
+        <button class="btn-confirm" id="btnConfirmarNuevo" onclick="crearReq()">Crear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Previsualización de PDF -->
+  <div class="preview-modal" id="modalPreview">
+    <div class="preview-header">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:1.2rem;">📄</span>
+        <h3 id="previewTitle" style="font-size:0.95rem; font-weight:700;">Documentación Unificada</h3>
+      </div>
+      <div class="preview-actions">
+        <a id="btnDescargarPdf" href="#" target="_blank" class="btn-action-view" style="color:#6ee7b7; border-color:rgba(16,185,129,0.3);">📥 Descargar Original</a>
+        <button class="btn-close-prev" onclick="cerrarPreview()">Cerrar Vista ✕</button>
+      </div>
+    </div>
+    <iframe id="iframePreview" src="" allowfullscreen></iframe>
+  </div>
+
+  <!-- Modal: Subir documento (OBSOLETO, se mantiene por si el sistema aún lo invoca internamente) -->
+  <div class="overlay" id="modalSubir">
+    <div class="modal-box">
+      <h3>📤 Subir Documento</h3>
+      <p style="color:#94a3b8; font-size:0.83rem; margin-bottom:12px;">
+        Seleccioná un archivo de tu computadora (PDF o imagen).<br>
+        <strong style="color:#f1f5f9;" id="nombreReqSubir"></strong>
+      </p>
+      <label>Archivo a subir</label>
+      <input type="file" id="inputFileLocal" accept=".pdf,image/*" style="padding:6px 10px;">
+      <div id="subirMsg"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="cerrarModal('modalSubir')">Cancelar</button>
+        <button class="btn-confirm" id="btnConfirmarSubir" onclick="confirmarSubir()">Subir</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let requerimientos = [];
+    let documentosPorReq = {};
+    let idDocActual = null;
+    let colaArchivos = new Map(); // idDoc -> {file, base64, mimeType, fileName}
+
+    // ── Sesión desde localStorage ────────────────────────────────
+    const cdUid    = localStorage.getItem('cd_uid')    || '';
+    const cdRol    = localStorage.getItem('cd_rol')    || 'usuario';
+    const cdNombre = localStorage.getItem('cd_nombre') || 'Usuario';
+
+    document.getElementById('nombreUsuario').textContent = cdNombre;
+
+    if (!cdUid) {
+      try { window.top.location.href = '<?= appUrl ?>?page=ControlDocus'; } catch(e){}
+      document.body.innerHTML = '<div style="text-align:center; padding: 50px; color:#e2e8f0;"><p>Su sesión ha expirado.</p><br><a href="<?= appUrl ?>?page=ControlDocus" target="_top" style="display:inline-block; padding:10px 20px; background:#3b82f6; color:white; text-decoration:none; border-radius:8px;">Volver al Login</a></div>';
+    }
+
+    function logout() {
+      localStorage.removeItem('cd_uid');
+      localStorage.removeItem('cd_rol');
+      localStorage.removeItem('cd_nombre');
+      try { window.top.location.href = '<?= appUrl ?>?page=ControlDocus'; } catch(e){}
+      document.body.innerHTML = '<div style="text-align:center; padding: 50px; color:#e2e8f0;"><p>Cerrando sesión...</p><br><a href="<?= appUrl ?>?page=ControlDocus" target="_top" style="display:inline-block; padding:10px 20px; background:#ef4444; color:white; text-decoration:none; border-radius:8px;">Ir al Inicio</a></div>';
+    }
+
+    function showMsg(containerId, texto, tipo) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      el.innerHTML = '<div class="msg msg-' + tipo + '">' + texto + '</div>';
+      if (tipo === 'ok') setTimeout(function() { el.innerHTML = ''; }, 3000);
+    }
+
+    function cargarRequerimientos(conservarAbiertos = false) {
+      if (!conservarAbiertos) {
+        document.getElementById('loading-main').style.display = 'block';
+        document.getElementById('reqGrid').innerHTML = '';
+      }
+      google.script.run
+        .withSuccessHandler(function(res) {
+          document.getElementById('loading-main').style.display = 'none';
+          if (!res.ok) { showMsg('globalMsg', res.message || 'Error al cargar.', 'err'); return; }
+          requerimientos = res.data || [];
+          renderReqs(conservarAbiertos);
+        })
+        .withFailureHandler(function(e) {
+          document.getElementById('loading-main').innerHTML = 'Error: ' + e.message;
+        })
+        .listarRequerimientos(cdUid, cdRol);
+    }
+
+    function renderReqs(conservarAbiertos = false) {
+      const grid = document.getElementById('reqGrid');
+      
+      const abiertosActuales = new Set();
+      if (conservarAbiertos) {
+        document.querySelectorAll('.docs-table-wrap.open').forEach(w => abiertosActuales.add(w.id.replace('docs-', '')));
+      }
+
+      if (requerimientos.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><div class="icon">📂</div><p>No tenés requerimientos aún.<br>Creá uno con el botón "Nuevo Requerimiento".</p></div>';
+        return;
+      }
+      
+      const oldReqs = grid.innerHTML;
+      grid.innerHTML = '';
+      
+      requerimientos.forEach(function(req) {
+        const pct = Math.round((req.aprobados / 15) * 100);
+        const completo = req.aprobados === 15 || req.idPdfDrive;
+        const yaTienePdf = !!req.idPdfDrive;
+
+        let vencClass = 'venc-ok';
+        let vencTxt = req.diasRestantes + ' días hábiles';
+        if (req.vencido) { vencClass = 'venc-vencido'; vencTxt = 'VENCIDO'; }
+        else if (req.diasRestantes <= 2) vencClass = 'venc-warn';
+
+        const isOpen = abiertosActuales.has(req.idReq);
+        const pdfBtn = yaTienePdf ? '<button class="btn-pdf" onclick="verPdf(\'' + req.idReq + '\')">📄 Ver PDF Unificado</button>' : '';
+
+        const card = document.createElement('div');
+        card.className = 'req-card';
+        card.innerHTML =
+          '<div class="req-card-header" onclick="toggleReq(this, \'' + req.idReq + '\')">' +
+            '<div>' +
+              '<div class="req-card-title">' + req.apellidoNombre + '</div>' +
+              '<div class="req-card-sub">Autoridad: ' + req.autoridad + ' &nbsp;|&nbsp; Vence: ' + req.fechaVencimiento + '</div>' +
+            '</div>' +
+            '<div class="req-card-right">' +
+              '<span class="progress-pill' + (completo ? ' completo' : '') + '">' + req.aprobados + '/15 ✓</span>' +
+              '<span class="venc-pill ' + vencClass + '">' + vencTxt + '</span>' +
+              pdfBtn +
+              '<span class="chevron ' + (isOpen ? 'open' : '') + '" id="chev-' + req.idReq + '">▼</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="progress-bar-wrap"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div></div>' +
+          '<div class="docs-table-wrap ' + (isOpen ? 'open' : '') + '" id="docs-' + req.idReq + '"></div>';
+        grid.appendChild(card);
+        
+        if (isOpen) {
+          const wrap = document.getElementById('docs-' + req.idReq);
+          if (documentosPorReq[req.idReq]) renderDocs(req.idReq, wrap);
+          else cargarDocs(req.idReq, wrap);
+        }
+      });
+    }
+
+    function toggleReq(headerEl, idReq) {
+      const wrap = document.getElementById('docs-' + idReq);
+      const chev = document.getElementById('chev-' + idReq);
+      if (wrap.classList.contains('open')) {
+        wrap.classList.remove('open'); chev.classList.remove('open');
+      } else {
+        wrap.classList.add('open'); chev.classList.add('open');
+        if (!wrap.dataset.loaded) cargarDocs(idReq, wrap);
+      }
+    }
+
+    function cargarDocs(idReq, wrap) {
+      wrap.innerHTML = '<p style="color:#64748b;padding:10px;">Cargando documentos...</p>';
+      google.script.run
+        .withSuccessHandler(function(res) {
+          wrap.dataset.loaded = '1';
+          if (!res.ok) { wrap.innerHTML = '<p style="color:#fca5a5;padding:10px;">' + res.message + '</p>'; return; }
+          documentosPorReq[idReq] = res.data;
+          renderDocs(idReq, wrap);
+        })
+        .withFailureHandler(function(e) {
+          wrap.innerHTML = '<p style="color:#fca5a5;padding:10px;">Error: ' + e.message + '</p>';
+        })
+        .getDocumentosReq(idReq);
+    }
+
+    function renderDocs(idReq, wrap) {
+      const req = requerimientos.find(r => r.idReq === idReq);
+      const yaTienePdf = req && req.idPdfDrive;
+
+      if (yaTienePdf) {
+        wrap.innerHTML = `
+          <div style="padding:20px; text-align:center; background:rgba(16,185,129,0.05); border-radius:12px; border:1px dashed rgba(16,185,129,0.3); margin:10px 0;">
+            <p style="color:#6ee7b7; font-weight:600; margin-bottom:12px;">✅ CICLO CERRADO: El supervisor ha generado el PDF final.</p>
+            <p style="color:#94a3b8; font-size:0.83rem; margin-bottom:15px;">Ya no se pueden subir más documentos para este requerimiento.</p>
+            <button class="btn-primary" onclick="verPdf('${idReq}')">👁️ Ver Documentación Unificada</button>
+          </div>
+        `;
+        return;
+      }
+
+      const docs = documentosPorReq[idReq] || [];
+      const ecMap = {PENDIENTE:'est-pendiente',CARGADO:'est-cargado',APROBADO:'est-aprobado',RECHAZADO:'est-rechazado'};
+      const elMap = {PENDIENTE:'Pendiente',CARGADO:'En revisión',APROBADO:'✅ Aprobado',RECHAZADO:'❌ Rechazado'};
+      
+      let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">';
+      html += '<h4 style="font-size:0.8rem; color:#94a3b8;">Documentación requerida:</h4>';
+      html += '<button id="btnSubirLote-' + idReq + '" class="btn-sm btn-upload" style="display:none;" onclick="subirLote(\'' + idReq + '\')">📤 SUBIR ARCHIVOS SELECCIONADOS</button>';
+      html += '</div>';
+
+      html += '<table class="docs-table"><thead><tr><th>#</th><th>Documento</th><th>Estado</th><th>Accion</th></tr></thead><tbody>';
+      
+      docs.forEach(function(d) {
+        const ec = ecMap[d.estado] || 'est-pendiente';
+        const el = elMap[d.estado] || d.estado;
+        const enCola = colaArchivos.get(d.idDoc);
+        
+        let accionHtml = '';
+        if (d.estado === 'PENDIENTE' || d.estado === 'RECHAZADO') {
+          if (enCola) {
+            accionHtml = '<span style="color:#6ee7b7; font-size:0.75rem; font-weight:600;">📎 ' + enCola.fileName + '</span> <button class="btn-sm btn-delete" style="padding:2px 6px; font-size:0.65rem;" onclick="quitarDeCola(\'' + d.idDoc + '\',\'' + idReq + '\')">✕</button>';
+          } else {
+            accionHtml = '<button class="btn-sm btn-view" onclick="document.getElementById(\'f-' + d.idDoc + '\').click()">📂 Seleccionar</button>';
+            accionHtml += '<input type="file" id="f-' + d.idDoc + '" style="display:none" accept=".pdf,image/*" onchange="prepararArchivo(this,\'' + d.idDoc + '\',\'' + idReq + '\')">';
+          }
+        } else if (d.urlDrive) {
+          accionHtml = '<button class="btn-sm btn-view" onclick="previsualizarDoc(\'' + d.urlDrive + '\', \'' + d.nombreReq.replace(/'/g, "\\'") + '\')">👁️ Ver</button>';
+        }
+        
+        const obs = (d.estado === 'RECHAZADO' && d.obsRechazo) ? '<div class="obs-rechazo">⚠️ ' + d.obsRechazo + '</div>' : '';
+        html += '<tr><td style="color:#64748b;width:30px;">' + d.numReq + '</td><td><span style="color:#cbd5e1;">' + d.nombreReq + '</span>' + obs + '</td><td><span class="estado-badge ' + ec + '">' + el + '</span></td><td id="cell-act-' + d.idDoc + '">' + accionHtml + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      wrap.innerHTML = html;
+      verificarBotonLote(idReq);
+    }
+
+    function prepararArchivo(input, idDoc, idReq) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      if (file.size > 10 * 1024 * 1024) { alert('El archivo no debe superar los 10MB.'); return; }
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const dataUri = e.target.result;
+        const base64Data = dataUri.split(',')[1];
+        const mimeType = file.type;
+        const fileName = file.name;
+        
+        if (mimeType.startsWith('image/')) {
+          // Convertir a PDF inmediatamente para la cola
+          const img = new Image();
+          img.onload = function() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: img.width > img.height ? 'landscape' : 'portrait', unit: 'px', format: [img.width, img.height] });
+            const imgFormat = mimeType.includes('png') ? 'PNG' : (mimeType.includes('webp') ? 'WEBP' : 'JPEG');
+            pdf.addImage(dataUri, imgFormat, 0, 0, img.width, img.height);
+            const pdfDataUri = pdf.output('datauristring');
+            let pdfName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+            pdfName += '.pdf';
+            colaArchivos.set(idDoc, { base64: pdfDataUri.split(',')[1], mimeType: 'application/pdf', fileName: pdfName });
+            renderDocs(idReq, document.getElementById('docs-' + idReq));
+          };
+          img.src = dataUri;
+        } else {
+          colaArchivos.set(idDoc, { base64: base64Data, mimeType: mimeType, fileName: fileName });
+          renderDocs(idReq, document.getElementById('docs-' + idReq));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function quitarDeCola(idDoc, idReq) {
+      colaArchivos.delete(idDoc);
+      renderDocs(idReq, document.getElementById('docs-' + idReq));
+    }
+
+    function verificarBotonLote(idReq) {
+      const docs = documentosPorReq[idReq] || [];
+      const hayEnCola = docs.some(d => colaArchivos.has(d.idDoc));
+      const btn = document.getElementById('btnSubirLote-' + idReq);
+      if (btn) btn.style.display = hayEnCola ? 'block' : 'none';
+    }
+
+    async function subirLote(idReq) {
+      const docs = documentosPorReq[idReq] || [];
+      const pendientes = docs.filter(d => colaArchivos.has(d.idDoc));
+      if (pendientes.length === 0) return;
+      
+      const btn = document.getElementById('btnSubirLote-' + idReq);
+      btn.disabled = true;
+      btn.textContent = 'Subiendo 1 de ' + pendientes.length + '...';
+      
+      for (let i = 0; i < pendientes.length; i++) {
+        const d = pendientes[i];
+        const data = colaArchivos.get(d.idDoc);
+        btn.textContent = 'Subiendo ' + (i + 1) + ' de ' + pendientes.length + '...';
+        
+        const cell = document.getElementById('cell-act-' + d.idDoc);
+        if (cell) cell.innerHTML = '<span style="color:#3b82f6; font-size:0.7rem;">⬆️ Subiendo...</span>';
+        
+        await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(idDocUp => { 
+               colaArchivos.delete(d.idDoc);
+               resolve(); 
+            })
+            .withFailureHandler(err => { 
+               alert('Error en ' + d.nombreReq + ': ' + err.message);
+               resolve(); // continuar con el siguiente
+            })
+            .subirDocumentoLocalCD(d.idDoc, data.mimeType, data.base64, data.fileName);
+        });
+      }
+      
+      delete documentosPorReq[idReq];
+      recargarDocs();
+    }
+
+    function abrirModalNuevo() {
+      document.getElementById('inputNombre').value = '';
+      document.getElementById('inputAutoridad').value = '';
+      document.getElementById('nuevoMsg').innerHTML = '';
+      document.getElementById('modalNuevo').classList.add('open');
+    }
+
+    function crearReq() {
+      const apellidoNombre = document.getElementById('inputNombre').value.trim();
+      const autoridad = document.getElementById('inputAutoridad').value.trim();
+      if (!apellidoNombre || !autoridad) { showMsg('nuevoMsg', 'Completá todos los campos.', 'err'); return; }
+      const btn = document.getElementById('btnConfirmarNuevo');
+      btn.disabled = true; btn.textContent = 'Creando...';
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false; btn.textContent = 'Crear';
+          if (res.ok) { cerrarModal('modalNuevo'); cargarRequerimientos(); }
+          else { showMsg('nuevoMsg', res.message, 'err'); }
+        })
+        .withFailureHandler(function(e) {
+          btn.disabled = false; btn.textContent = 'Crear';
+          showMsg('nuevoMsg', 'Error: ' + e.message, 'err');
+        })
+        .crearRequerimiento(apellidoNombre, autoridad, cdUid);
+    }
+
+    // Autosincronización: actualiza estados en segundo plano cada 25 segundos
+    setInterval(function() {
+      // Solo sincronizar si no hay una subida en curso para evitar conflictos
+      const botonesSubida = document.querySelectorAll('button[id^="btnSubirLote-"]');
+      const subiendo = Array.from(botonesSubida).some(b => b.disabled);
+      if (!subiendo) {
+        // Al sincronizar requerimientos, invalidamos el caché de los que están abiertos 
+        // para que renderReqs vuelva a cargar sus documentos del servidor
+        document.querySelectorAll('.docs-table-wrap.open').forEach(w => {
+          const id = w.id.replace('docs-', '');
+          delete documentosPorReq[id];
+        });
+        cargarRequerimientos(true);
+      }
+    }, 25000);
+
+    cargarRequerimientos();
+
+    function eliminarDoc(idDoc, idReq) {
+      if (!confirm('¿Eliminar el documento para poder subir uno nuevo?')) return;
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.ok) {
+            var wrap = document.getElementById('docs-' + idReq);
+            delete wrap.dataset.loaded;
+            cargarDocs(idReq, wrap);
+            cargarRequerimientos();
+          } else { showMsg('globalMsg', res.message, 'err'); }
+        })
+        .eliminarDocumento(idDoc);
+    }
+
+    function recargarDocs() {
+      cargarRequerimientos(true); 
+    }
+
+    function verPdf(idReq) {
+      const req = requerimientos.find(r => r.idReq === idReq);
+      const title = req ? 'PDF: ' + req.apellidoNombre : 'Visualizar Reporte';
+      
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.ok) { previsualizarDoc(res.urlPdf, title); }
+          else { showMsg('globalMsg', res.message, 'err'); }
+        })
+        .getPdfUrlCD(idReq);
+    }
+
+    function previsualizarDoc(url, label) {
+      if (!url) return;
+      
+      // Asegurar acceso en el servidor antes de cargar el iframe
+      document.getElementById('previewTitle').textContent = 'Cargando visor...';
+      document.getElementById('iframePreview').src = 'about:blank';
+      document.getElementById('modalPreview').classList.add('open');
+
+      google.script.run
+        .withSuccessHandler(function() {
+          let previewUrl = url;
+          if (url.includes('drive.google.com/file/')) {
+            const match = url.match(/\/file\/d\/([^\/]+)/);
+            if (match) previewUrl = "https://drive.google.com/file/d/" + match[1] + "/preview";
+          }
+          
+          document.getElementById('previewTitle').textContent = label || 'Vista Previa';
+          document.getElementById('iframePreview').src = previewUrl;
+          document.body.style.overflow = 'hidden'; 
+        })
+        .asegurarAccesoPublico(url);
+      
+      // Actualizar enlace de descarga
+      document.getElementById('btnDescargarPdf').href = url;
+    }
+
+    function cerrarPreview() {
+      document.getElementById('modalPreview').classList.remove('open');
+      document.getElementById('iframePreview').src = '';
+      document.body.style.overflow = 'auto';
+    }
+
+    function cerrarModal(id) { document.getElementById(id).classList.remove('open'); }
+    document.querySelectorAll('.overlay').forEach(function(o) {
+      o.addEventListener('click', function(e) { if (e.target === o) cerrarModal(o.id); });
+    });
+
+    cargarRequerimientos();
+  </script>
+</body>
+</html>
