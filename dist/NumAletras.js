@@ -105,10 +105,10 @@ function NumeroALetras(num) {
         enteros: Math.floor(num),
         centavos: (((Math.round(num * 100)) - (Math.floor(num) * 100))),
         letrasCentavos: "",
-        letrasMonedaPlural: 'PESOS',
-        letrasMonedaSingular: 'PESO',
-        letrasMonedaCentavoPlural: "CENTAVOS",
-        letrasMonedaCentavoSingular: "CENTAVO",
+        letrasMonedaPlural: '',
+        letrasMonedaSingular: '',
+        letrasMonedaCentavoPlural: "",
+        letrasMonedaCentavoSingular: "",
     };
     if (data.centavos > 0) {
         data.letrasCentavos = "CON " + (function () {
@@ -116,12 +116,12 @@ function NumeroALetras(num) {
                 return Millones(data.centavos) + " " + data.letrasMonedaCentavoSingular;
             else
                 return Millones(data.centavos) + " " + data.letrasMonedaCentavoPlural;
-        })();
+        })().trim();
     }
     if (data.enteros == 0)
-        return [data.letrasMonedaPlural, data.letrasCentavos].filter(s => !!s).join(" ").trim();
+        return [data.letrasCentavos].filter(s => !!s).join(" ").trim() || "CERO";
     if (data.enteros == 1)
-        return [Millones(data.enteros), data.letrasMonedaSingular, data.letrasCentavos].filter(s => !!s).join(" ").trim();
+        return [Millones(data.enteros), data.letrasCentavos].filter(s => !!s).join(" ").trim();
     else
-        return [Millones(data.enteros), data.letrasMonedaPlural, data.letrasCentavos].filter(s => !!s).join(" ").trim();
+        return [Millones(data.enteros), data.letrasCentavos].filter(s => !!s).join(" ").trim();
 }

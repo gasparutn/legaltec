@@ -1,0 +1,220 @@
+<script>
+  /**
+   * Genera los campos del formulario dinámicamente
+   */
+  function generateFormFields(data) {
+    if (generatingForm) return;
+    generatingForm = true;
+    const formFields = document.getElementById('formFields');
+    if (!formFields) { generatingForm = false; return; }
+    formFields.innerHTML = '<div style="text-align:center; padding:20px;"><div class="elegant-spinner" style="margin:0 auto;"></div></div>';
+    
+    setTimeout(() => {
+      try {
+        generateFormFieldsContent(data);
+      } catch (err) {
+        console.error("Error generating form:", err);
+        if (formFields) formFields.innerHTML = '<div style="color:red; padding:20px;">Error al cargar el formulario.</div>';
+      } finally {
+        generatingForm = false;
+        // Una vez generado, aplicar visibilidad de campos de nota si corresponde
+        const tipoNotaSelect = document.getElementById('tipoNotaSelect');
+        if (tipoNotaSelect) applyNotaFieldVisibility(tipoNotaSelect.value);
+      }
+    }, 50);
+
+  }
+
+  function generateFormFieldsContent(data) {
+    const formFields = document.getElementById('formFields');
+    formFields.innerHTML = '';
+    
+    // FILA 1: AUTORIDAD, SEXO, AUTOR
+    const row1 = document.createElement('div');
+    row1.className = 'form-row-flex';
+    row1.appendChild(createField('AUTORIDAD', 'select', data['AUTORIDAD'], 'w-flex'));
+    row1.appendChild(createField('SEXO', 'select', data['SEXO'], 'w-sexo'));
+    row1.appendChild(createField('AUTOR', 'select', data['AUTOR'], 'w-autor'));
+    formFields.appendChild(row1);
+
+    // FILA 2: DNI, NOMBRES, APELLIDOS
+    const row2 = document.createElement('div');
+    row2.className = 'form-grid';
+    row2.appendChild(createField('DNI', 'text', data['DNI'], 'col-1'));
+    row2.appendChild(createField('NOMBRES', 'text', data['NOMBRES'], 'col-1'));
+    row2.appendChild(createField('APELLIDOS', 'text', data['APELLIDOS'], 'col-2'));
+    formFields.appendChild(row2);
+
+    // FILA 3: FECHA ALTA, TOTAL, CUOTA
+    const row3 = document.createElement('div');
+    row3.className = 'form-row-flex';
+    row3.appendChild(createField('FECHA ALTA', 'date', formatDateForInput(data['FECHA ALTA']), 'w-fecha'));
+    row3.appendChild(createField('TOTAL', 'text', data['TOTAL'], 'w-total'));
+    row3.appendChild(createField('CUOTA', 'select', data['CUOTA'], 'w-cuota'));
+    formFields.appendChild(row3);
+
+    // FILA 4: TAREAS
+    formFields.appendChild(createField('TAREAS', 'select', data['TAREAS'], 'form-row-single'));
+
+    // FILA 5: DOMICILIO, LOCALIDAD, REQ
+    const row5 = document.createElement('div');
+    row5.className = 'form-row-flex';
+    row5.appendChild(createField('DOMICILIO', 'text', data['DOMICILIO'], 'w-flex'));
+    row5.appendChild(createField('LOCALIDAD', 'select', data['LOCALIDAD'], 'w-flex'));
+    row5.appendChild(createField('REQ', 'text', data['REQ'], 'w-req'));
+    formFields.appendChild(row5);
+
+    // FILA 6: OTROS (FECHA BAJA, CORREO LOCADOR, ESTADO)
+    const row6 = document.createElement('div');
+    row6.className = 'form-row-flex';
+    row6.appendChild(createField('FECHA BAJA', 'date', formatDateForInput(data['FECHA BAJA']), 'w-fecha'));
+    row6.appendChild(createField('CORREO LOCADOR', 'text', data['CORREO LOCADOR'], 'w-flex'));
+    row6.appendChild(createField('ESTADO', 'select', data['ESTADO'], 'w-estado'));
+    formFields.appendChild(row6);
+
+    // Campos ocultos de autocompletado
+    const hiddenGroup = document.createElement('div');
+    hiddenGroup.style.display = 'none';
+    hiddenGroup.innerHTML = `
+      <input type="hidden" id="SECRETARIO" value="${data['SECRETARIO'] || ''}">
+      <input type="hidden" id="CORREO SECRETARIO" value="${data['CORREO SECRETARIO'] || ''}">
+    `;
+    formFields.appendChild(hiddenGroup);
+  }
+
+  function createField(id, type, value, className) {
+    const group = document.createElement('div');
+    group.className = 'form-group ' + className;
+    group.id = 'group_' + id.replace(/\s+/g, '_');
+    
+    const label = document.createElement('label');
+    label.textContent = id + ':';
+    group.appendChild(label);
+
+    let input;
+    if (type === 'select') {
+      input = document.createElement('select');
+      const options = CONFIG.SELECT_COLUMNS[id] || [];
+      options.forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt;
+        o.textContent = opt || '-- Seleccionar --';
+        if (String(opt).toUpperCase() === String(value || '').toUpperCase()) o.selected = true;
+        input.appendChild(o);
+      });
+
+      if (id === 'AUTORIDAD') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'input-with-buttons';
+        input.id = id;
+        wrapper.appendChild(input);
+
+        const actions = document.createElement('div');
+        actions.className = 'action-buttons';
+        actions.appendChild(createActionBtn('⚙️', 'blue', 'Gestionar autoridades', openAutoridadEditDialog));
+        actions.appendChild(createActionBtn('➕', 'green', 'Nueva autoridad', openAutoridadAddDialog));
+        wrapper.appendChild(actions);
+        
+        input.addEventListener('change', () => {
+          const info = autoridadesConfig[input.value.toUpperCase()] || { secretario: '', correo: '' };
+          document.getElementById('SECRETARIO').value = info.secretario;
+          document.getElementById('CORREO SECRETARIO').value = info.correo;
+        });
+        group.appendChild(wrapper);
+        return group;
+      }
+    } else {
+      input = document.createElement('input');
+      input.type = type;
+      input.value = value || '';
+    }
+    
+    input.id = id;
+    group.appendChild(input);
+    return group;
+  }
+
+  function createActionBtn(text, color, title, onClick) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn-action ${color}`;
+    btn.textContent = text;
+    btn.title = title;
+    btn.onclick = (e) => {
+      e.preventDefault();
+      const autSelect = document.getElementById('AUTORIDAD');
+      const val = autSelect ? autSelect.value : '';
+      const info = autoridadesConfig[val.toUpperCase()] || {};
+      onClick(val, info);
+    };
+    return btn;
+  }
+
+  function applyNotaFieldVisibility(tipo) {
+    const fieldsToToggle = ['SEXO', 'FECHA_BAJA', 'REQ', 'CORREO_LOCADOR', 'TAREAS', 'TOTAL', 'CUOTA', 'FECHA_ALTA'];
+    fieldsToToggle.forEach(f => {
+      const el = document.getElementById('group_' + f);
+      if (el) el.style.display = 'flex'; // Reset
+    });
+
+    if (tipo === 'Nota DDJJ') {
+      ['SEXO', 'FECHA_BAJA', 'REQ', 'TAREAS', 'TOTAL', 'CUOTA', 'FECHA_ALTA'].forEach(f => {
+        const el = document.getElementById('group_' + f);
+        if (el) el.style.display = 'none';
+      });
+    } else if (tipo.startsWith('Nota Alta')) {
+      ['FECHA_BAJA', 'CORREO_LOCADOR', 'REQ'].forEach(f => {
+        const el = document.getElementById('group_' + f);
+        if (el) el.style.display = 'none';
+      });
+    } else if (tipo.startsWith('Nota Baja')) {
+      ['CORREO_LOCADOR', 'TAREAS', 'TOTAL', 'CUOTA', 'FECHA_ALTA'].forEach(f => {
+        const el = document.getElementById('group_' + f);
+        if (el) el.style.display = 'none';
+      });
+    } else if (tipo.startsWith('Prórroga')) {
+      ['FECHA_BAJA', 'CORREO_LOCADOR', 'REQ', 'TAREAS', 'TOTAL', 'FECHA_ALTA'].forEach(f => {
+        const el = document.getElementById('group_' + f);
+        if (el) el.style.display = 'none';
+      });
+    }
+  }
+
+  function openAutoridadEditDialog(val, info) {
+
+    if (!val) { alert("Seleccione una autoridad primero."); return; }
+    const nuevoSec = prompt("Nuevo Secretario para " + val + ":", info.secretario || "");
+    const nuevoCor = prompt("Nuevo Correo para " + val + ":", info.correo || "");
+    if (nuevoSec !== null && nuevoCor !== null) {
+      google.script.run.withSuccessHandler(r => {
+        if (r.success) {
+          showMessage("Autoridad actualizada.");
+          loadAuxData();
+        } else showMessage(r.message, true);
+      }).addAutoridadConfig(val, val, nuevoSec, nuevoCor);
+    }
+  }
+
+  function openAutoridadAddDialog() {
+    const ap = prompt("Apellido de la nueva autoridad (ej: IGLESIAS):");
+    if (!ap) return;
+    const sec = prompt("Nombre del Secretario/a:");
+    const cor = prompt("Correo del Secretario/a:");
+    if (sec && cor) {
+      google.script.run.withSuccessHandler(r => {
+        if (r.success) {
+          showMessage("Autoridad agregada.");
+          loadAuxData();
+        } else showMessage(r.message, true);
+      }).addAutoridadConfig(ap, ap, sec, cor);
+    }
+  }
+
+  function getFormData() {
+    const fd = {};
+    const inputs = document.querySelectorAll('#dataForm input, #dataForm select');
+    inputs.forEach(i => { if (i.id) fd[i.id] = i.value; });
+    return fd;
+  }
+
+</script>

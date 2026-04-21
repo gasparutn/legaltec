@@ -3,28 +3,59 @@
  * Registra un movimiento en la hoja de Control.
  * Columnas: Usuario | Movimientos | Fecha y Hora
  */
-function logActivity(movimiento) {
+function logActivity(movimiento, activeAutor) {
     try {
         const props = PropertiesService.getUserProperties();
         const userName = props.getProperty('CD_NOMBRE') || 'Usuario Desconocido';
-        // Abrir la hoja de control
-        const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("Control");
+        const autor = activeAutor || props.getProperty('AUTOR_COD') || '';
+        // Abrir la hoja de control de forma eficiente
+        const sheet = getSS().getSheetByName("Control");
         if (!sheet) {
             Logger.log("Error: La hoja 'Control' no existe.");
             return;
         }
         const now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
-        sheet.appendRow([userName, movimiento, now]);
+        // Columnas en Sheet 'Control': Usuario | Movimiento | Fecha | Iniciales Autor
+        sheet.appendRow([userName, movimiento, now, autor]);
     }
     catch (e) {
         Logger.log("Error al registrar actividad: " + e.message);
     }
 }
 /**
+ * Sanitiza una cadena de texto para evitar inyecciones XSS quitando caracteres peligrosos.
+ */
+function sanitizeInput(str) {
+    if (!str)
+        return '';
+    return String(str)
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+/**
  * Normaliza un encabezado para comparación (Mayúsculas, Sin Espacios, Sin Acentos)
  */
 function normalizeHeader(h) {
     return String(h || '').trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+/**
+ * Crea un mapa de nombres de columna (normalizados) a índices (0-based) para una hoja.
+ * Permite que el sistema sea resistente a cambios en el orden de las columnas.
+ */
+function getColumnMap(sheet) {
+    if (!sheet)
+        return {};
+    const lastCol = sheet.getLastColumn();
+    if (lastCol === 0)
+        return {};
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    const map = {};
+    headers.forEach((h, idx) => {
+        const norm = normalizeHeader(h);
+        if (norm)
+            map[norm] = idx;
+    });
+    return map;
 }
 /**
  * Parsea una fecha de forma segura, priorizando el formato DD/MM/YYYY y el formato largo de Argentina (D de Mes de YYYY)
@@ -194,4 +225,10 @@ function getCache(key) {
         Logger.log("Error al leer de caché: " + e.message);
         return null;
     }
+}
+/**
+ * Devuelve la URL de ejecución de la web app
+ */
+function getAppUrl() {
+    return ScriptApp.getService().getUrl();
 }

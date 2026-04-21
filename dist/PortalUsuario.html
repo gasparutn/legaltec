@@ -1,95 +1,573 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Control Docus — Mi Portal</title>
+  <title>LEGALTEC - CONTROL</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
-    .header { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.08); }
-    .header-left { display: flex; align-items: center; gap: 12px; }
-    .header h1 { font-size: 1.1rem; font-weight: 700; color: #f8fafc; }
-    .badge { font-size: 0.7rem; background: #3b82f6; color: white; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
-    .user-info { font-size: 0.82rem; color: #94a3b8; }
-    .btn-logout { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-family: 'Inter', sans-serif; }
-    .btn-logout:hover { background: rgba(239,68,68,0.25); }
-    .main { padding: 28px; max-width: 1100px; margin: 0 auto; }
-    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .top-bar h2 { font-size: 1rem; font-weight: 600; color: #cbd5e1; }
-    .btn-primary { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 0.875rem; font-weight: 600; font-family: 'Inter', sans-serif; }
-    .btn-primary:hover { opacity: 0.9; }
-    .req-grid { display: flex; flex-direction: column; gap: 16px; }
-    .req-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; overflow: hidden; }
-    .req-card:hover { border-color: rgba(59,130,246,0.35); }
-    .req-card-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; cursor: pointer; }
-    .req-card-title { font-weight: 600; font-size: 0.95rem; color: #f1f5f9; }
-    .req-card-sub { font-size: 0.78rem; color: #64748b; margin-top: 2px; }
-    .req-card-right { display: flex; align-items: center; gap: 12px; }
-    .progress-pill { font-size: 0.75rem; font-weight: 600; background: rgba(59,130,246,0.15); color: #93c5fd; padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(59,130,246,0.3); }
-    .progress-pill.completo { background: rgba(16,185,129,0.15); color: #6ee7b7; border-color: rgba(16,185,129,0.3); }
-    .venc-pill { font-size: 0.72rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
-    .venc-ok   { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
-    .venc-warn { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
-    .venc-vencido { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
-    .btn-pdf { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.78rem; font-family: 'Inter', sans-serif; font-weight: 600; }
-    .chevron { font-size: 0.9rem; color: #64748b; transition: transform 0.2s; }
-    .chevron.open { transform: rotate(180deg); }
-    .progress-bar-wrap { padding: 0 20px 6px; }
-    .progress-bar-bg { background: rgba(255,255,255,0.06); border-radius: 4px; height: 4px; }
-    .progress-bar-fill { height: 4px; border-radius: 4px; background: linear-gradient(90deg, #3b82f6, #8b5cf6); transition: width 0.4s; }
-    .docs-table-wrap { padding: 0 20px 20px; display: none; }
-    .docs-table-wrap.open { display: block; }
-    .docs-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-    .docs-table th { text-align: left; padding: 8px 10px; color: #64748b; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.06em; }
-    .docs-table td { padding: 10px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
-    .docs-table tr:last-child td { border-bottom: none; }
-    .estado-badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; }
-    .est-pendiente { background: rgba(100,116,139,0.15); color: #94a3b8; }
-    .est-cargado   { background: rgba(59,130,246,0.15); color: #93c5fd; }
-    .est-aprobado  { background: rgba(16,185,129,0.15); color: #6ee7b7; }
-    .est-rechazado { background: rgba(239,68,68,0.15); color: #fca5a5; }
-    .obs-rechazo { margin-top: 4px; font-size: 0.75rem; color: #fca5a5; background: rgba(239,68,68,0.08); padding: 4px 8px; border-radius: 6px; }
-    .doc-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .btn-sm { font-size: 0.75rem; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 600; border: none; }
-    .btn-sm:hover { opacity: 0.82; }
-    .btn-upload { background: #3b82f6; color: white; }
-    .btn-delete { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3) !important; }
-    .btn-view   { background: rgba(100,116,139,0.2); color: #cbd5e1; }
-    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; }
-    .overlay.open { display: flex; }
-    .modal-box { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; width: 100%; max-width: 440px; box-shadow: 0 25px 60px rgba(0,0,0,0.5); }
-    .modal-box h3 { font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 20px; }
-    .modal-box label { font-size: 0.78rem; color: #94a3b8; font-weight: 500; text-transform: uppercase; display: block; margin-bottom: 5px; margin-top: 14px; }
-    .modal-box input { width: 100%; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 9px; padding: 10px 14px; color: #f1f5f9; font-size: 0.9rem; font-family: 'Inter', sans-serif; outline: none; }
-    .modal-box input:focus { border-color: #3b82f6; }
-    .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
-    .btn-cancel { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 10px; border-radius: 9px; cursor: pointer; font-family: 'Inter', sans-serif; }
-    .btn-confirm { flex: 2; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; padding: 10px; border-radius: 9px; cursor: pointer; font-weight: 600; font-family: 'Inter', sans-serif; }
-    .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
-    .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
-    #loading-main { text-align: center; padding: 60px; color: #64748b; }
-    .msg { padding: 10px 14px; border-radius: 8px; font-size: 0.83rem; margin-bottom: 14px; }
-    .msg-err { background: rgba(239,68,68,0.1); color: #fca5a5; border: 1px solid rgba(239,68,68,0.2); }
-    .msg-ok  { background: rgba(16,185,129,0.1); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.2); }
-    
-    /* Previsualización PDF */
-    .preview-modal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.95); backdrop-filter: blur(8px); z-index: 1000; flex-direction: column; }
-    .preview-modal.open { display: flex; }
-    .preview-header { 
-      background: #1e293b; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1);
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
-    .preview-actions { display: flex; gap: 14px; }
-    .btn-action-view { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 6px; }
-    .btn-action-view:hover { background: rgba(255,255,255,0.15); }
-    .btn-close-prev { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; }
-    
-    iframe#iframePreview { flex: 1; border: none; width: 100%; height: 100%; background: #1a1a1a; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      background: rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      background: #3b82f6;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    .user-info {
+      font-size: 0.82rem;
+      color: #94a3b8;
+    }
+
+    .btn-logout {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .btn-logout:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .main {
+      padding: 28px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .top-bar h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+
+    .req-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .req-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .req-card:hover {
+      border-color: rgba(59, 130, 246, 0.35);
+    }
+
+    .req-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      cursor: pointer;
+    }
+
+    .req-card-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #f1f5f9;
+    }
+
+    .req-card-sub {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    .req-card-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .progress-pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .progress-pill.completo {
+      background: rgba(16, 185, 129, 0.15);
+      color: #6ee7b7;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .venc-pill {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .venc-ok {
+      background: rgba(100, 116, 139, 0.15);
+      color: #94a3b8;
+      border: 1px solid rgba(100, 116, 139, 0.3);
+    }
+
+    .venc-warn {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .venc-vencido {
+      background: rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-pdf {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+    }
+
+    .chevron {
+      font-size: 0.9rem;
+      color: #64748b;
+      transition: transform 0.2s;
+    }
+
+    .chevron.open {
+      transform: rotate(180deg);
+    }
+
+    .progress-bar-wrap {
+      padding: 0 20px 6px;
+    }
+
+    .progress-bar-bg {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      height: 4px;
+    }
+
+    .progress-bar-fill {
+      height: 4px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+      transition: width 0.4s;
+    }
+
+    .docs-table-wrap {
+      padding: 0 20px 20px;
+      display: none;
+    }
+
+    .docs-table-wrap.open {
+      display: block;
+    }
+
+    .docs-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.83rem;
+    }
+
+    .docs-table th {
+      text-align: left;
+      padding: 8px 10px;
+      color: #64748b;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+    }
+
+    .docs-table td {
+      padding: 10px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      vertical-align: middle;
+    }
+
+    .docs-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .estado-badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .est-pendiente {
+      background: rgba(100, 116, 139, 0.15);
+      color: #94a3b8;
+    }
+
+    .est-cargado {
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+    }
+
+    .est-aprobado {
+      background: rgba(16, 185, 129, 0.15);
+      color: #6ee7b7;
+    }
+
+    .est-rechazado {
+      background: rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+    }
+
+    .obs-rechazo {
+      margin-top: 4px;
+      font-size: 0.75rem;
+      color: #fca5a5;
+      background: rgba(239, 68, 68, 0.08);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    .doc-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-sm {
+      font-size: 0.75rem;
+      padding: 5px 12px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      border: none;
+    }
+
+    .btn-sm:hover {
+      opacity: 0.82;
+    }
+
+    .btn-upload {
+      background: #3b82f6;
+      color: white;
+    }
+
+    .btn-delete {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    }
+
+    .btn-view {
+      background: rgba(100, 116, 139, 0.2);
+      color: #cbd5e1;
+    }
+
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-box h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 20px;
+    }
+
+    .modal-box label {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      font-weight: 500;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 5px;
+      margin-top: 14px;
+    }
+
+    .modal-box input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9px;
+      padding: 10px 14px;
+      color: #f1f5f9;
+      font-size: 0.9rem;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+    }
+
+    .modal-box input:focus {
+      border-color: #3b82f6;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .btn-cancel {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #94a3b8;
+      padding: 10px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .btn-confirm {
+      flex: 2;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #475569;
+    }
+
+    .empty-state .icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+    }
+
+    #loading-main {
+      text-align: center;
+      padding: 60px;
+      color: #64748b;
+    }
+
+    .msg {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.83rem;
+      margin-bottom: 14px;
+    }
+
+    .msg-err {
+      background: rgba(239, 68, 68, 0.1);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .msg-ok {
+      background: rgba(16, 185, 129, 0.1);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    /* Previsualización PDF */
+    .preview-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      flex-direction: column;
+    }
+
+    .preview-modal.open {
+      display: flex;
+    }
+
+    .preview-header {
+      background: #1e293b;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 14px;
+    }
+
+    .btn-action-view {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-action-view:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-close-prev {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    iframe#iframePreview {
+      flex: 1;
+      border: none;
+      width: 100%;
+      height: 100%;
+      background: #1a1a1a;
+    }
+
+    /* ── Responsive Mobile ── */
+    @media (max-width: 768px) {
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 16px;
+      }
+      .req-grid {
+        grid-template-columns: 1fr;
+      }
+      .main {
+        padding: 14px;
+      }
+      .top-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .modal-box {
+        padding: 20px;
+        margin: 0 15px;
+      }
+      .preview-actions {
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+      }
+      .preview-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+      }
+    }
   </style>
 </head>
+
 <body>
 
   <div class="header">
@@ -138,7 +616,8 @@
         <h3 id="previewTitle" style="font-size:0.95rem; font-weight:700;">Documentación Unificada</h3>
       </div>
       <div class="preview-actions">
-        <a id="btnDescargarPdf" href="#" target="_blank" class="btn-action-view" style="color:#6ee7b7; border-color:rgba(16,185,129,0.3);">📥 Descargar Original</a>
+        <a id="btnDescargarPdf" href="#" target="_blank" class="btn-action-view"
+          style="color:#6ee7b7; border-color:rgba(16,185,129,0.3);">📥 Descargar Original</a>
         <button class="btn-close-prev" onclick="cerrarPreview()">Cerrar Vista ✕</button>
       </div>
     </div>
@@ -163,37 +642,73 @@
     </div>
   </div>
 
+  <!-- Modal: Inactividad -->
+  <div class="overlay" id="modalInactividad" style="z-index: 9999;">
+    <div class="modal-box" style="text-align: center;">
+      <div style="font-size: 3.5rem; margin-bottom: 15px;">⏳</div>
+      <h3 style="color: #f1f5f9; font-size: 1.3rem; margin-bottom: 10px;">Sesión Caducada</h3>
+      <p style="color: #94a3b8; font-size: 0.95rem; margin-bottom: 25px; line-height: 1.5;">
+        Por seguridad, tu sesión se ha cerrado automáticamente debido a 5 minutos de inactividad.
+      </p>
+      <button class="btn-confirm" style="width: 100%; padding: 12px; font-size: 1rem;" 
+        onclick="localStorage.clear(); window.top.location.href='https://legaltec-control.vercel.app/';">Volver al Login</button>
+    </div>
+  </div>
+
   <script>
+    // ── Timeout por inactividad (5 min) ───────────────────────────
+    let timeoutInactividad;
+    const MINUTOS_INACTIVIDAD = 5;
+
+    function resetInactividad() {
+      clearTimeout(timeoutInactividad);
+      if (!localStorage.getItem('cd_uid')) return; // Evitar si ya cerró sesión
+      timeoutInactividad = setTimeout(mostrarInactividad, MINUTOS_INACTIVIDAD * 60 * 1000);
+    }
+
+    function mostrarInactividad() {
+      // Remover credenciales del frontend inmediatamente
+      localStorage.removeItem('cd_uid');
+      localStorage.removeItem('cd_rol');
+      localStorage.removeItem('cd_nombre');
+      document.getElementById('modalInactividad').classList.add('open');
+    }
+
+    ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'].forEach(evt => {
+      document.addEventListener(evt, resetInactividad, { passive: true });
+    });
+
+    resetInactividad();
     let requerimientos = [];
     let documentosPorReq = {};
     let idDocActual = null;
     let colaArchivos = new Map(); // idDoc -> {file, base64, mimeType, fileName}
 
     // ── Sesión desde localStorage ────────────────────────────────
-    const cdUid    = localStorage.getItem('cd_uid')    || '';
-    const cdRol    = localStorage.getItem('cd_rol')    || 'usuario';
+    const cdUid = localStorage.getItem('cd_uid') || '';
+    const cdRol = localStorage.getItem('cd_rol') || 'usuario';
     const cdNombre = localStorage.getItem('cd_nombre') || 'Usuario';
 
     document.getElementById('nombreUsuario').textContent = cdNombre;
 
     if (!cdUid) {
-      try { window.top.location.href = '<?= appUrl ?>?page=ControlDocus'; } catch(e){}
-      document.body.innerHTML = '<div style="text-align:center; padding: 50px; color:#e2e8f0;"><p>Su sesión ha expirado.</p><br><a href="<?= appUrl ?>?page=ControlDocus" target="_top" style="display:inline-block; padding:10px 20px; background:#3b82f6; color:white; text-decoration:none; border-radius:8px;">Volver al Login</a></div>';
+      try { window.top.location.href = '<?= appUrl ?>?page=ControlDocus'; } catch (e) { }
+      document.body.innerHTML = '<div style="text-align:center; padding: 50px; color:#e2e8f0;"><p>Cargando sesión...</p></div>';
     }
 
     function logout() {
       localStorage.removeItem('cd_uid');
       localStorage.removeItem('cd_rol');
       localStorage.removeItem('cd_nombre');
-      try { window.top.location.href = '<?= appUrl ?>?page=ControlDocus'; } catch(e){}
-      document.body.innerHTML = '<div style="text-align:center; padding: 50px; color:#e2e8f0;"><p>Cerrando sesión...</p><br><a href="<?= appUrl ?>?page=ControlDocus" target="_top" style="display:inline-block; padding:10px 20px; background:#ef4444; color:white; text-decoration:none; border-radius:8px;">Ir al Inicio</a></div>';
+      try { window.top.location.href = 'https://legaltec-control.vercel.app/'; } catch (e) { }
+      document.body.innerHTML = '<div style="text-align:center; padding: 50px; color:#e2e8f0;"><p>Cerrando sesión...</p></div>';
     }
 
     function showMsg(containerId, texto, tipo) {
       const el = document.getElementById(containerId);
       if (!el) return;
       el.innerHTML = '<div class="msg msg-' + tipo + '">' + texto + '</div>';
-      if (tipo === 'ok') setTimeout(function() { el.innerHTML = ''; }, 3000);
+      if (tipo === 'ok') setTimeout(function () { el.innerHTML = ''; }, 3000);
     }
 
     function cargarRequerimientos(conservarAbiertos = false) {
@@ -202,13 +717,13 @@
         document.getElementById('reqGrid').innerHTML = '';
       }
       google.script.run
-        .withSuccessHandler(function(res) {
+        .withSuccessHandler(function (res) {
           document.getElementById('loading-main').style.display = 'none';
           if (!res.ok) { showMsg('globalMsg', res.message || 'Error al cargar.', 'err'); return; }
           requerimientos = res.data || [];
           renderReqs(conservarAbiertos);
         })
-        .withFailureHandler(function(e) {
+        .withFailureHandler(function (e) {
           document.getElementById('loading-main').innerHTML = 'Error: ' + e.message;
         })
         .listarRequerimientos(cdUid, cdRol);
@@ -216,7 +731,7 @@
 
     function renderReqs(conservarAbiertos = false) {
       const grid = document.getElementById('reqGrid');
-      
+
       const abiertosActuales = new Set();
       if (conservarAbiertos) {
         document.querySelectorAll('.docs-table-wrap.open').forEach(w => abiertosActuales.add(w.id.replace('docs-', '')));
@@ -226,11 +741,11 @@
         grid.innerHTML = '<div class="empty-state"><div class="icon">📂</div><p>No tenés requerimientos aún.<br>Creá uno con el botón "Nuevo Requerimiento".</p></div>';
         return;
       }
-      
+
       const oldReqs = grid.innerHTML;
       grid.innerHTML = '';
-      
-      requerimientos.forEach(function(req) {
+
+      requerimientos.forEach(function (req) {
         const pct = Math.round((req.aprobados / 15) * 100);
         const completo = req.aprobados === 15 || req.idPdfDrive;
         const yaTienePdf = !!req.idPdfDrive;
@@ -247,21 +762,21 @@
         card.className = 'req-card';
         card.innerHTML =
           '<div class="req-card-header" onclick="toggleReq(this, \'' + req.idReq + '\')">' +
-            '<div>' +
-              '<div class="req-card-title">' + req.apellidoNombre + '</div>' +
-              '<div class="req-card-sub">Autoridad: ' + req.autoridad + ' &nbsp;|&nbsp; Vence: ' + req.fechaVencimiento + '</div>' +
-            '</div>' +
-            '<div class="req-card-right">' +
-              '<span class="progress-pill' + (completo ? ' completo' : '') + '">' + req.aprobados + '/15 ✓</span>' +
-              '<span class="venc-pill ' + vencClass + '">' + vencTxt + '</span>' +
-              pdfBtn +
-              '<span class="chevron ' + (isOpen ? 'open' : '') + '" id="chev-' + req.idReq + '">▼</span>' +
-            '</div>' +
+          '<div>' +
+          '<div class="req-card-title">' + req.apellidoNombre + '</div>' +
+          '<div class="req-card-sub">Autoridad: ' + req.autoridad + ' &nbsp;|&nbsp; Vence: ' + req.fechaVencimiento + '</div>' +
+          '</div>' +
+          '<div class="req-card-right">' +
+          '<span class="progress-pill' + (completo ? ' completo' : '') + '">' + req.aprobados + '/15 ✓</span>' +
+          '<span class="venc-pill ' + vencClass + '">' + vencTxt + '</span>' +
+          pdfBtn +
+          '<span class="chevron ' + (isOpen ? 'open' : '') + '" id="chev-' + req.idReq + '">▼</span>' +
+          '</div>' +
           '</div>' +
           '<div class="progress-bar-wrap"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div></div>' +
           '<div class="docs-table-wrap ' + (isOpen ? 'open' : '') + '" id="docs-' + req.idReq + '"></div>';
         grid.appendChild(card);
-        
+
         if (isOpen) {
           const wrap = document.getElementById('docs-' + req.idReq);
           if (documentosPorReq[req.idReq]) renderDocs(req.idReq, wrap);
@@ -284,13 +799,13 @@
     function cargarDocs(idReq, wrap) {
       wrap.innerHTML = '<p style="color:#64748b;padding:10px;">Cargando documentos...</p>';
       google.script.run
-        .withSuccessHandler(function(res) {
+        .withSuccessHandler(function (res) {
           wrap.dataset.loaded = '1';
           if (!res.ok) { wrap.innerHTML = '<p style="color:#fca5a5;padding:10px;">' + res.message + '</p>'; return; }
           documentosPorReq[idReq] = res.data;
           renderDocs(idReq, wrap);
         })
-        .withFailureHandler(function(e) {
+        .withFailureHandler(function (e) {
           wrap.innerHTML = '<p style="color:#fca5a5;padding:10px;">Error: ' + e.message + '</p>';
         })
         .getDocumentosReq(idReq);
@@ -312,21 +827,21 @@
       }
 
       const docs = documentosPorReq[idReq] || [];
-      const ecMap = {PENDIENTE:'est-pendiente',CARGADO:'est-cargado',APROBADO:'est-aprobado',RECHAZADO:'est-rechazado'};
-      const elMap = {PENDIENTE:'Pendiente',CARGADO:'En revisión',APROBADO:'✅ Aprobado',RECHAZADO:'❌ Rechazado'};
-      
+      const ecMap = { PENDIENTE: 'est-pendiente', CARGADO: 'est-cargado', APROBADO: 'est-aprobado', RECHAZADO: 'est-rechazado' };
+      const elMap = { PENDIENTE: 'Pendiente', CARGADO: 'En revisión', APROBADO: '✅ Aprobado', RECHAZADO: '❌ Rechazado' };
+
       let html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">';
       html += '<h4 style="font-size:0.8rem; color:#94a3b8;">Documentación requerida:</h4>';
       html += '<button id="btnSubirLote-' + idReq + '" class="btn-sm btn-upload" style="display:none;" onclick="subirLote(\'' + idReq + '\')">📤 SUBIR ARCHIVOS SELECCIONADOS</button>';
       html += '</div>';
 
       html += '<table class="docs-table"><thead><tr><th>#</th><th>Documento</th><th>Estado</th><th>Accion</th></tr></thead><tbody>';
-      
-      docs.forEach(function(d) {
+
+      docs.forEach(function (d) {
         const ec = ecMap[d.estado] || 'est-pendiente';
         const el = elMap[d.estado] || d.estado;
         const enCola = colaArchivos.get(d.idDoc);
-        
+
         let accionHtml = '';
         if (d.estado === 'PENDIENTE' || d.estado === 'RECHAZADO') {
           if (enCola) {
@@ -338,7 +853,7 @@
         } else if (d.urlDrive) {
           accionHtml = '<button class="btn-sm btn-view" onclick="previsualizarDoc(\'' + d.urlDrive + '\', \'' + d.nombreReq.replace(/'/g, "\\'") + '\')">👁️ Ver</button>';
         }
-        
+
         const obs = (d.estado === 'RECHAZADO' && d.obsRechazo) ? '<div class="obs-rechazo">⚠️ ' + d.obsRechazo + '</div>' : '';
         html += '<tr><td style="color:#64748b;width:30px;">' + d.numReq + '</td><td><span style="color:#cbd5e1;">' + d.nombreReq + '</span>' + obs + '</td><td><span class="estado-badge ' + ec + '">' + el + '</span></td><td id="cell-act-' + d.idDoc + '">' + accionHtml + '</td></tr>';
       });
@@ -351,18 +866,18 @@
       if (!input.files || !input.files[0]) return;
       const file = input.files[0];
       if (file.size > 10 * 1024 * 1024) { alert('El archivo no debe superar los 10MB.'); return; }
-      
+
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = function (e) {
         const dataUri = e.target.result;
         const base64Data = dataUri.split(',')[1];
         const mimeType = file.type;
         const fileName = file.name;
-        
+
         if (mimeType.startsWith('image/')) {
           // Convertir a PDF inmediatamente para la cola
           const img = new Image();
-          img.onload = function() {
+          img.onload = function () {
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({ orientation: img.width > img.height ? 'landscape' : 'portrait', unit: 'px', format: [img.width, img.height] });
             const imgFormat = mimeType.includes('png') ? 'PNG' : (mimeType.includes('webp') ? 'WEBP' : 'JPEG');
@@ -398,33 +913,33 @@
       const docs = documentosPorReq[idReq] || [];
       const pendientes = docs.filter(d => colaArchivos.has(d.idDoc));
       if (pendientes.length === 0) return;
-      
+
       const btn = document.getElementById('btnSubirLote-' + idReq);
       btn.disabled = true;
       btn.textContent = 'Subiendo 1 de ' + pendientes.length + '...';
-      
+
       for (let i = 0; i < pendientes.length; i++) {
         const d = pendientes[i];
         const data = colaArchivos.get(d.idDoc);
         btn.textContent = 'Subiendo ' + (i + 1) + ' de ' + pendientes.length + '...';
-        
+
         const cell = document.getElementById('cell-act-' + d.idDoc);
         if (cell) cell.innerHTML = '<span style="color:#3b82f6; font-size:0.7rem;">⬆️ Subiendo...</span>';
-        
+
         await new Promise((resolve, reject) => {
           google.script.run
-            .withSuccessHandler(idDocUp => { 
-               colaArchivos.delete(d.idDoc);
-               resolve(); 
+            .withSuccessHandler(idDocUp => {
+              colaArchivos.delete(d.idDoc);
+              resolve();
             })
-            .withFailureHandler(err => { 
-               alert('Error en ' + d.nombreReq + ': ' + err.message);
-               resolve(); // continuar con el siguiente
+            .withFailureHandler(err => {
+              alert('Error en ' + d.nombreReq + ': ' + err.message);
+              resolve(); // continuar con el siguiente
             })
             .subirDocumentoLocalCD(d.idDoc, data.mimeType, data.base64, data.fileName);
         });
       }
-      
+
       delete documentosPorReq[idReq];
       recargarDocs();
     }
@@ -443,12 +958,12 @@
       const btn = document.getElementById('btnConfirmarNuevo');
       btn.disabled = true; btn.textContent = 'Creando...';
       google.script.run
-        .withSuccessHandler(function(res) {
+        .withSuccessHandler(function (res) {
           btn.disabled = false; btn.textContent = 'Crear';
           if (res.ok) { cerrarModal('modalNuevo'); cargarRequerimientos(); }
           else { showMsg('nuevoMsg', res.message, 'err'); }
         })
-        .withFailureHandler(function(e) {
+        .withFailureHandler(function (e) {
           btn.disabled = false; btn.textContent = 'Crear';
           showMsg('nuevoMsg', 'Error: ' + e.message, 'err');
         })
@@ -456,7 +971,7 @@
     }
 
     // Autosincronización: actualiza estados en segundo plano cada 25 segundos
-    setInterval(function() {
+    setInterval(function () {
       // Solo sincronizar si no hay una subida en curso para evitar conflictos
       const botonesSubida = document.querySelectorAll('button[id^="btnSubirLote-"]');
       const subiendo = Array.from(botonesSubida).some(b => b.disabled);
@@ -476,7 +991,7 @@
     function eliminarDoc(idDoc, idReq) {
       if (!confirm('¿Eliminar el documento para poder subir uno nuevo?')) return;
       google.script.run
-        .withSuccessHandler(function(res) {
+        .withSuccessHandler(function (res) {
           if (res.ok) {
             var wrap = document.getElementById('docs-' + idReq);
             delete wrap.dataset.loaded;
@@ -488,15 +1003,15 @@
     }
 
     function recargarDocs() {
-      cargarRequerimientos(true); 
+      cargarRequerimientos(true);
     }
 
     function verPdf(idReq) {
       const req = requerimientos.find(r => r.idReq === idReq);
       const title = req ? 'PDF: ' + req.apellidoNombre : 'Visualizar Reporte';
-      
+
       google.script.run
-        .withSuccessHandler(function(res) {
+        .withSuccessHandler(function (res) {
           if (res.ok) { previsualizarDoc(res.urlPdf, title); }
           else { showMsg('globalMsg', res.message, 'err'); }
         })
@@ -505,26 +1020,37 @@
 
     function previsualizarDoc(url, label) {
       if (!url) return;
-      
+
+      if (window.innerWidth <= 768) {
+        // En móviles, saltamos el iframe y abrimos directo para evitar el bloqueo de cookies de terceros
+        document.getElementById('previewTitle').textContent = 'Abriendo...';
+        google.script.run
+          .withSuccessHandler(function () {
+            window.open(url, '_blank');
+          })
+          .asegurarAccesoPublico(url);
+        return;
+      }
+
       // Asegurar acceso en el servidor antes de cargar el iframe
       document.getElementById('previewTitle').textContent = 'Cargando visor...';
       document.getElementById('iframePreview').src = 'about:blank';
       document.getElementById('modalPreview').classList.add('open');
 
       google.script.run
-        .withSuccessHandler(function() {
+        .withSuccessHandler(function () {
           let previewUrl = url;
           if (url.includes('drive.google.com/file/')) {
             const match = url.match(/\/file\/d\/([^\/]+)/);
             if (match) previewUrl = "https://drive.google.com/file/d/" + match[1] + "/preview";
           }
-          
+
           document.getElementById('previewTitle').textContent = label || 'Vista Previa';
           document.getElementById('iframePreview').src = previewUrl;
-          document.body.style.overflow = 'hidden'; 
+          document.body.style.overflow = 'hidden';
         })
         .asegurarAccesoPublico(url);
-      
+
       // Actualizar enlace de descarga
       document.getElementById('btnDescargarPdf').href = url;
     }
@@ -536,11 +1062,16 @@
     }
 
     function cerrarModal(id) { document.getElementById(id).classList.remove('open'); }
-    document.querySelectorAll('.overlay').forEach(function(o) {
-      o.addEventListener('click', function(e) { if (e.target === o) cerrarModal(o.id); });
+    document.querySelectorAll('.overlay').forEach(function (o) {
+      o.addEventListener('click', function (e) { if (e.target === o) cerrarModal(o.id); });
     });
 
     cargarRequerimientos();
   </script>
+
+  <?!= include('ChatWidget'); ?>
+
+  <?!= include('AssistantNico'); ?>
 </body>
+
 </html>

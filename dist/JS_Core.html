@@ -1,0 +1,201 @@
+<script>
+  // --- Configuración Global ---
+  const CONFIG = {
+    DATE_COLUMNS: ['FECHA ALTA', 'FECHA DE ALTA', 'FECHA BAJA', 'FECHA DE BAJA', 'FECHA BAJA CONTRATO', 'FECHA NOTIFICA'],
+    NUMBER_COLUMNS: [],
+    SELECT_COLUMNS: {
+      'SEXO': ['', 'el Sr.', 'la Sra.'],
+      'AUTORIDAD': [
+        '', 'ADM', 'ANA', 'ASES', 'BARRO', 'CANO', 'CHAPPEL', 'DERRACHE', 'DIUMENJO',
+        'EISENCHLAS', 'FLORIDIA', 'FREIDEMBERG', 'GALIÑARES', 'GÓMEZ', 'GONZÁLEZ F.',
+        'GONZÁLEZ V.', 'IGLESIAS', 'KERCHNER', 'LAFERTE', 'LEGISLATIVA', 'MAGISTRETTI',
+        'MANONI', 'MARCOLINI', 'MARQUEZ', 'NAJUL', 'PERVIU', 'PEZZUTTI', 'PRADINES',
+        'PRINGLES', 'QUATTRINI', 'ROSTAND', 'RUS', 'SABADIN', 'SÁEZ', 'SAINZ', 'SAT',
+        'SERRA', 'SEVILLA', 'SOTO', 'VAQUER', 'VICCHI', 'VICE', 'ZLOBEC'
+      ],
+      'AUTOR': ['', 'JU', 'GA', 'NI'],
+      'CUOTA': ['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+      'TAREAS': [
+        '', "inherentes a la función legislativa", "de asesoramiento legislativo", "de asesoramiento", 
+        "de asesoramiento afines a comisiones", "legislativas", "de asesoramiento en elaboración de proyectos", 
+        "de asesoramiento contable", "de Profesora de Braille", "administrativas en comisiones", 
+        "administrativas", "de asesoramiento comunicacional", "de asesoramiento y labor legislativo", 
+        "de asesoramiento técnico", "en oficina de Ética Pública", "de docencia en lenguaje de señas", 
+        "administrativas en la dirección de compras", "de Gestión Ciudadana en San Rafael", 
+        "de patrocinio jurídico gratuito", "de fonoaudióloga en Coro de la Legislatura Provincial", 
+        "de operatividad, programación, actualización y mantenimiento del sitio web oficial", 
+        "de asesoramiento legal y técnico", "de prevención de salud", "asesoramiento legal", 
+        "asesoramiento en comunicación y redes", "administrativas en la dirección de compras", 
+        "asesoramiento en comunicación", "de asesoramiento económico", "de asesoramiento en hábitat y vivienda", 
+        "de asistencia en prensa", "de asesoramiento administrativo", "de asesoramiento en prensa", 
+        "administrativas en prensa", "de asesoramiento jurídico", 
+        "en Coro de la Legislatura como preparadora vocal de la H. Cámara de Senadores", 
+        "en Secretaría de Comunicación Institucional y Prensa", "en Secretaría de Transporte", 
+        "de Dirección de despacho"
+      ],
+      'LOCALIDAD': [
+        '', 'General Alvear, Mendoza', 'Godoy Cruz, Mendoza', 'Guaymallén, Mendoza', 
+        'Junín, Mendoza', 'La Paz, Mendoza', 'Las Heras, Mendoza', 'Lavalle, Mendoza', 
+        'Luján de Cuyo, Mendoza', 'Maipú, Mendoza', 'Malargüe, Mendoza', 'Rivadavia, Mendoza', 
+        'San Carlos, Mendoza', 'San Martín, Mendoza', 'San Rafael, Mendoza', 'Santa Rosa, Mendoza', 
+        'Tunuyán, Mendoza', 'Tupungato, Mendoza', 'Capital, Mendoza'
+      ],
+      'ESTADO': ['Pendiente', 'Contrato', 'Resolución', 'Notificado', 'Baja']
+    }
+  };
+
+  // --- Variables de Estado Global ---
+  let originalData = [];
+  let currentHeaders = [];
+  let hiddenHeaders = [];
+  let editingRowIdx = -1;
+  let auxDataMap = {};
+  let rowToDeleteIdx = -1;
+  let autoridadesConfig = {};
+  let currentUserRole = null;
+  let generatingForm = false;
+  let currentDataVersion = null;
+  let syncInterval = null;
+  let currentPage = 1;
+  let rowsPerPage = 10;
+  let filteredData = [];
+
+  /**
+   * Muestra un mensaje temporal en la interfaz
+   */
+  function showMessage(msg, isError = false) {
+    const messageArea = document.getElementById('message');
+    if (messageArea) {
+      messageArea.textContent = msg;
+      messageArea.className = isError ? 'message-area error' : 'message-area';
+      setTimeout(() => messageArea.textContent = '', 5000);
+    }
+  }
+
+  /**
+   * Convierte fechas para inputs
+   */
+  function formatDateForInput(val) {
+    if (!val) return '';
+    const str = String(val).trim();
+    const partsISO = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (partsISO) return str;
+    const partsSlash = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (partsSlash) {
+      return `${partsSlash[3]}-${partsSlash[2].padStart(2, '0')}-${partsSlash[1].padStart(2, '0')}`;
+    }
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const dy = String(d.getDate()).padStart(2, '0');
+      return `${y}-${mo}-${dy}`;
+    }
+    return str;
+  }
+
+  /**
+   * Actualiza el estado visual de sincronización
+   */
+  function updateSyncStatus(status, customMsg = null) {
+    const indicator = document.getElementById('syncIndicator');
+    if (!indicator) return;
+    indicator.classList.remove('syncing', 'sync-success', 'sync-error');
+    switch (status) {
+      case 'syncing':
+        indicator.textContent = customMsg || 'Sincronizando...';
+        indicator.classList.add('syncing');
+        break;
+      case 'success':
+        indicator.textContent = customMsg || '✓ Sincronizado';
+        indicator.classList.add('sync-success');
+        break;
+      case 'error':
+        indicator.textContent = customMsg || '⚠ Error Red';
+        indicator.classList.add('sync-error');
+        break;
+      case 'idle':
+        indicator.textContent = customMsg || 'En espera';
+        break;
+    }
+  }
+
+  /**
+   * Carga inicial de datos de autoridades (aux)
+   */
+  function loadAuxData() {
+    google.script.run
+      .withSuccessHandler(r => { if (r.success) auxDataMap = r.data; })
+      .getAuxData();
+  }
+
+  /**
+   * Carga principal de datos desde el servidor
+   * @param {boolean} isSync Indica si es una actualización automática
+   */
+  function loadData(isSync = false) {
+    if (!isSync) updateSyncStatus('syncing', 'Cargando datos...');
+    
+    const anio = document.getElementById('anioSelect') ? document.getElementById('anioSelect').value : new Date().getFullYear();
+    const mes = document.getElementById('mesSelect') ? document.getElementById('mesSelect').value : 'all_months';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          originalData = res.data;
+          currentHeaders = res.headers;
+          hiddenHeaders = res.hiddenHeaders;
+          currentDataVersion = res.version || currentDataVersion;
+
+          // Filtrado local (si hay algo en el buscador)
+          const term = document.getElementById('searchInput') ? document.getElementById('searchInput').value.toLowerCase() : '';
+          filteredData = term ? originalData.filter(r => r.some(c => String(c).toLowerCase().includes(term))) : originalData;
+
+          // Renderizar preservando la página si es posible
+          const totalPages = rowsPerPage === 'all' ? 1 : Math.ceil(filteredData.length / rowsPerPage);
+          if (currentPage > totalPages) currentPage = 1;
+
+          renderTable(currentHeaders, filteredData);
+          updatePaginationControls();
+          updateSyncStatus('success');
+        } else {
+          updateSyncStatus('error', 'Error al cargar');
+          showMessage(res.message, true);
+        }
+      })
+      .withFailureHandler(err => {
+        updateSyncStatus('error', 'Falla de red');
+        showMessage(err.message, true);
+      })
+      .getData({ type: 'period', year: anio, month: mes });
+  }
+
+  /**
+   * Inicia el ciclo de sincronización automática
+   */
+  function startAutoSync() {
+    // Poll cada 20 segundos
+    if (syncInterval) clearInterval(syncInterval);
+    syncInterval = setInterval(checkForUpdates, 20000);
+  }
+
+  /**
+   * Verifica si hay una versión más reciente en el servidor
+   */
+  function checkForUpdates() {
+    // Si hay un modal abierto, no verificamos o no refrescamos para evitar molestias
+    const anyModalOpen = Array.from(document.querySelectorAll('.modal')).some(m => m.style.display === 'flex');
+    if (anyModalOpen) return;
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success && res.version && res.version !== currentDataVersion) {
+          console.log("Nueva versión detectada: " + res.version);
+          loadData(true); // Refresco silencioso
+        }
+      })
+      .checkDataVersion();
+  }
+
+
+</script>

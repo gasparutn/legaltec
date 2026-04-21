@@ -8,18 +8,22 @@
 
 <body>
   <div class="header">
-    <h1 class="title">LOCACIONES</h1>
-    <div class="controls">
-      <button id="addButton" class="add-button">+ Agregar</button>
-      <button id="globalActionButton" class="add-button">GENERAR</button>
-      <button id="goToNotificationsButton" class="add-button">CONTROL DOCUS</button>
-      <button onclick="localStorage.clear(); window.top.location.href='<?= appUrl ?>';" class="add-button" style="background-color:#ef4444;">SALIR 🚪</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+      <h1 class="title">PORTAL DE GESTIÓN</h1>
+      <div class="controls" style="margin-bottom: 0;">
+        <button id="addButton" class="add-button">+ Agregar</button>
+        <button id="globalActionButton" class="add-button">GENERAR</button>
+        <button id="goToNotificationsButton" class="add-button">SUPERVISIÓN DOCUMENTAL</button>
+        <button onclick="localStorage.clear(); window.top.location.href='<?= appUrl ?>';" class="add-button"
+          style="background-color:#ef4444;">SALIR 🚪</button>
+      </div>
     </div>
     <div class="secondary-controls">
       <div class="search-wrapper">
         <span class="search-icon">🔍</span>
         <input type="text" id="searchInput" placeholder="Buscar registros..." class="search-input">
-        <span id="syncIndicator" style="font-size: 10px; color: #94a3b8; margin-left: 10px; min-width: 80px;">Sincronizando...</span>
+        <span id="syncIndicator"
+          style="font-size: 10px; color: #94a3b8; margin-left: 10px; min-width: 80px;">Sincronizando...</span>
       </div>
       <div class="period-selector">
         <span class="period-label">PERIODO:</span>
@@ -124,11 +128,11 @@
 
         <!-- Los campos del formulario se generarán dinámicamente por JavaScript -->
         <div id="formFields"></div>
-        
+
         <!-- Hidden inputs para SECRETARIO y CORREO SECRETARIO -->
         <input type="hidden" id="hidden_SECRETARIO" name="SECRETARIO" value="">
         <input type="hidden" id="hidden_CORREO_SECRETARIO" name="CORREO SECRETARIO" value="">
-        
+
         <!-- Footer con archivo y botones -->
         <div class="form-footer">
           <div class="file-upload">
@@ -138,7 +142,8 @@
           <div class="footer-buttons">
             <button type="submit" id="saveButton" class="btn btn-primary">Guardar</button>
             <button type="button" id="cancelButton" class="btn btn-secondary">Cancelar</button>
-            <button type="button" id="btnRenovarContrato" class="btn btn-primary" style="display: none;">Renovar</button>
+            <button type="button" id="btnRenovarContrato" class="btn btn-primary"
+              style="display: none;">Renovar</button>
             <button type="button" id="btnGeneraNota" class="btn btn-success">Genera Nota</button>
           </div>
         </div>
@@ -150,7 +155,8 @@
   <div id="confirmModal" class="modal">
     <div class="modal-content small-modal">
       <div class="delete-icon-container">
-        <svg viewBox="0 0 24 24" width="70" height="70" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" width="70" height="70" fill="none" stroke="#ef4444" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"></polyline>
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
           <line x1="10" y1="11" x2="10" y2="17"></line>
@@ -158,9 +164,11 @@
         </svg>
       </div>
       <h2>¿Deseas eliminar este registro?</h2>
-      <p style="color: #64748b; margin-bottom: 25px;">Esta acción no se puede deshacer y el registro será borrado de la base de datos.</p>
+      <p style="color: #64748b; margin-bottom: 25px;">Esta acción no se puede deshacer y el registro será borrado de la
+        base de datos.</p>
       <div style="display: flex; gap: 10px; justify-content: center;">
-        <button id="confirmDeleteButton" class="delete-button" style="padding: 12px 24px; font-weight: 600;">Sí, eliminar</button>
+        <button id="confirmDeleteButton" class="delete-button" style="padding: 12px 24px; font-weight: 600;">Sí,
+          eliminar</button>
         <button id="cancelDeleteConfirmButton" class="cancel-button" style="padding: 12px 24px;">No, cancelar</button>
       </div>
     </div>
@@ -200,19 +208,59 @@
     </div>
   </div>
 
+  <!-- Modal: Inactividad -->
+  <div class="overlay" id="modalInactividad"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="modal-box"
+      style="background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; width: 100%; max-width: 440px; box-shadow: 0 25px 60px rgba(0,0,0,0.5); text-align: center;">
+      <div style="font-size: 3.5rem; margin-bottom: 15px;">⏳</div>
+      <h3 style="color: #f1f5f9; font-size: 1.3rem; margin-bottom: 10px; font-weight: 700;">Sesión Caducada</h3>
+      <p style="color: #94a3b8; font-size: 0.95rem; margin-bottom: 25px; line-height: 1.5;">
+        Por seguridad, tu sesión se ha cerrado automáticamente debido a 30 minutos de inactividad.
+      </p>
+      <button class="btn-confirm"
+        style="width: 100%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; padding: 12px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 1rem;"
+        onclick="localStorage.clear(); window.top.location.href='<?= appUrl ?>';">Volver al Login</button>
+    </div>
+  </div>
+
   <?!= include('Javascript'); ?>
 
   <script>
+    // ── Timeout por inactividad (30 min) ───────────────────────────
+    let timeoutInactividadIndex;
+    const MINUTOS_INACTIVIDAD_INDEX = 30;
+
+    function resetInactividadIndex() {
+      clearTimeout(timeoutInactividadIndex);
+      // Validar si la app requerida de login usa localStorage para no molestar si no
+      timeoutInactividadIndex = setTimeout(mostrarInactividadIndex, MINUTOS_INACTIVIDAD_INDEX * 60 * 1000);
+    }
+
+    function mostrarInactividadIndex() {
+      // Remover credenciales del frontend inmediatamente
+      localStorage.clear();
+      document.getElementById('modalInactividad').style.display = 'flex';
+    }
+
+    ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'].forEach(evt => {
+      document.addEventListener(evt, resetInactividadIndex, { passive: true });
+    });
+
+    resetInactividadIndex();
+
     document.addEventListener('DOMContentLoaded', () => {
       const goToNotificationsButton = document.getElementById('goToNotificationsButton');
-      if (goToNotificationsButton) {
-        goToNotificationsButton.addEventListener('click', () => {
-          google.script.run.logControlDocusAccess();
-          window.top.location.href = '<?= appUrl ?>?page=PanelSupervisor';
-        });
-      }
+        if (goToNotificationsButton) {
+          goToNotificationsButton.addEventListener('click', () => {
+            google.script.run.logControlDocusAccess();
+            window.top.location.href = '<?= appUrl ?>?page=PanelSupervisor';
+          });
+        }
     });
   </script>
 </body>
+
+
 
 </html>

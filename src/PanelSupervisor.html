@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Control Documentación — Panel Supervisor</title>
+  <title>LEGALTEC - CONTROL</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -21,24 +22,70 @@
     }
 
     /* ── Estilos Generales ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(--text-main); 
-      height: 100vh; display: flex; flex-direction: column; overflow: hidden; 
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     /* ── Header ── */
     .header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 24px; flex-shrink: 0;
-      background: rgba(255,255,255,0.02);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.02);
       border-bottom: 1px solid var(--border);
     }
-    .header-left { display: flex; align-items: center; gap: 12px; }
-    .header h1 { font-size: 1.1rem; font-weight: 700; }
-    .badge-sup { font-size: 0.65rem; background: var(--accent-p); color: white; padding: 2px 8px; border-radius: 20px; font-weight: 700; text-transform: uppercase; }
-    .btn-logout { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.78rem; transition: all 0.2s; }
-    .btn-logout:hover { background: rgba(239,68,68,0.25); }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .badge-sup {
+      font-size: 0.65rem;
+      background: var(--accent-p);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .btn-logout {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      transition: all 0.2s;
+    }
+
+    .btn-logout:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
 
     /* ── Layout Resizable (3 Columnas) ── */
     .app-container {
@@ -49,10 +96,31 @@
     }
 
     /* Paneles */
-    .panel { display: flex; flex-direction: column; overflow: hidden; background: var(--bg-base); }
-    .panel-header { padding: 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .panel-title { font-size: 0.85rem; font-weight: 700; color: var(--text-muto); text-transform: uppercase; letter-spacing: 0.05em; }
-    .panel-content { flex: 1; overflow-y: auto; }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-base);
+    }
+
+    .panel-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-muto);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+    }
 
     /* Divisores (Resizers) */
     .resizer {
@@ -60,110 +128,710 @@
       cursor: col-resize;
       transition: background 0.2s;
       z-index: 10;
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .resizer:hover, .resizer.dragging { background: var(--accent-p); opacity: 0.3; }
-    .resizer::after { content: ''; width: 2px; height: 30px; background: var(--border); border-radius: 2px; }
+
+    .resizer:hover,
+    .resizer.dragging {
+      background: var(--accent-p);
+      opacity: 0.3;
+    }
+
+    .resizer::after {
+      content: '';
+      width: 2px;
+      height: 30px;
+      background: var(--border);
+      border-radius: 2px;
+    }
 
     /* ── Listado Requerimientos (Col 1) ── */
-    .search-box { margin-top: 10px; position: relative; }
-    .search-box input { 
-      width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); 
-      border-radius: 8px; padding: 8px 12px; color: white; font-size: 0.8rem; outline: none;
+    .search-box {
+      margin-top: 10px;
+      position: relative;
     }
+
+    .search-box input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 0.8rem;
+      outline: none;
+    }
+
     .req-item {
-      padding: 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.2s;
     }
-    .req-item:hover { background: var(--bg-panel-alt); }
-    .req-item.selected { background: rgba(139, 92, 246, 0.1); border-left: 3px solid var(--accent-p); }
-    .req-name { font-size: 0.9rem; font-weight: 700; color: white; }
-    .req-sub { font-size: 0.75rem; color: var(--text-muto); margin-top: 4px; }
-    .req-user { font-size: 0.7rem; color: var(--accent-p); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
-    
+
+    .req-item:hover {
+      background: var(--bg-panel-alt);
+    }
+
+    .req-item.selected {
+      background: rgba(139, 92, 246, 0.1);
+      border-left: 3px solid var(--accent-p);
+    }
+
+    .req-name {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: white;
+    }
+
+    .req-sub {
+      font-size: 0.75rem;
+      color: var(--text-muto);
+      margin-top: 4px;
+    }
+
+    .req-user {
+      font-size: 0.7rem;
+      color: var(--accent-p);
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
     /* Botón eliminar requerimiento */
     .btn-del-req {
-      position: absolute; top: 12px; right: 12px;
-      background: none; border: none; color: var(--text-muto);
-      cursor: pointer; font-size: 0.9rem; opacity: 0; transition: all 0.2s;
-      padding: 4px; border-radius: 4px;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: var(--text-muto);
+      cursor: pointer;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: all 0.2s;
+      padding: 4px;
+      border-radius: 4px;
     }
-    .req-item:hover .btn-del-req { opacity: 0.6; }
-    .btn-del-req:hover { color: var(--accent-r); opacity: 1 !important; background: rgba(239, 68, 68, 0.1); }
+
+    .req-item:hover .btn-del-req {
+      opacity: 0.6;
+    }
+
+    .btn-del-req:hover {
+      color: var(--accent-r);
+      opacity: 1 !important;
+      background: rgba(239, 68, 68, 0.1);
+    }
 
     /* ── Detalle / Tabla de Documentos (Col 2) ── */
-    .col-mid { background: var(--bg-panel); border-right: 1px solid var(--border); border-left: 1px solid var(--border); }
-    .req-detail-top { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; }
-    .req-detail-info h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 4px; }
-    .req-detail-info p { font-size: 0.78rem; color: var(--text-muto); line-height: 1.4; }
-    .btn-gen-pdf {
-      background: var(--accent-s); color: white; border: none; padding: 10px 20px; 
-      border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem;
-      display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;
+    .col-mid {
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      border-left: 1px solid var(--border);
     }
-    .btn-gen-pdf:hover { opacity: 0.9; }
-    .btn-gen-pdf:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .req-detail-top {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .req-detail-info h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .req-detail-info p {
+      font-size: 0.78rem;
+      color: var(--text-muto);
+      line-height: 1.4;
+    }
+
+    .btn-gen-pdf {
+      background: var(--accent-s);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: opacity 0.2s;
+    }
+
+    .btn-gen-pdf:hover {
+      opacity: 0.9;
+    }
+
+    .btn-gen-pdf:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
 
     /* Tabla de documentos */
-    .docs-table-wrap { padding: 0; }
-    table.docs-t { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    table.docs-t th { 
-      text-align: left; padding: 12px 20px; color: var(--text-muto); 
-      font-size: 0.7rem; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid var(--border);
+    .docs-table-wrap {
+      padding: 0;
     }
-    table.docs-t td { padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-    
-    /* Estados y Acciones */
-    .pill { padding: 3px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; }
-    .pill-p { background: rgba(148,163,184,0.1); color: #94a3b8; } /* Pendiente */
-    .pill-c { background: rgba(59,130,246,0.1); color: #60a5fa; } /* Cargado */
-    .pill-a { background: rgba(16,185,129,0.1); color: #34d399; } /* Aprobado */
-    .pill-r { background: rgba(239,68,68,0.1); color: #f87171; } /* Rechazado */
 
-    .btn-ver-doc { 
-      background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-main);
-      padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
+    table.docs-t {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
     }
-    .btn-ver-doc:hover { background: rgba(255,255,255,0.1); }
+
+    table.docs-t th {
+      text-align: left;
+      padding: 12px 20px;
+      color: var(--text-muto);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      border-bottom: 1px solid var(--border);
+    }
+
+    table.docs-t td {
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    /* Estados y Acciones */
+    .pill {
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .pill-p {
+      background: rgba(148, 163, 184, 0.1);
+      color: #94a3b8;
+    }
+
+    /* Pendiente */
+    .pill-c {
+      background: rgba(59, 130, 246, 0.1);
+      color: #60a5fa;
+    }
+
+    /* Cargado */
+    .pill-a {
+      background: rgba(16, 185, 129, 0.1);
+      color: #34d399;
+    }
+
+    /* Aprobado */
+    .pill-r {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+    }
+
+    /* Rechazado */
+
+    .btn-ver-doc {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .btn-ver-doc:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
 
     /* ── Previsualización (Col 3) ── */
-    .col-right { background: #000; position: relative; }
-    .preview-header { 
-      background: #1e293b; border-bottom: 1px solid var(--border); padding: 10px 16px; 
-      display: flex; align-items: center; justify-content: space-between;
+    .col-right {
+      background: #000;
+      position: relative;
     }
-    .preview-title { font-size: 0.8rem; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .preview-actions { display: flex; gap: 12px; }
-    .btn-prev-act { background: none; border: none; color: white; cursor: pointer; opacity: 0.7; }
-    .btn-prev-act:hover { opacity: 1; }
-    
-    iframe#previewFrame { flex: 1; border: none; width: 100%; height: 100%; background: #1a1a1a; }
-    
+
+    .preview-header {
+      background: #1e293b;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .preview-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: white;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-prev-act {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      opacity: 0.7;
+    }
+
+    .btn-prev-act:hover {
+      opacity: 1;
+    }
+
+    iframe#previewFrame {
+      flex: 1;
+      border: none;
+      width: 100%;
+      height: 100%;
+      background: #1a1a1a;
+    }
+
     .empty-state {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      height: 100%; color: var(--text-muto); padding: 40px; text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muto);
+      padding: 40px;
+      text-align: center;
     }
 
     /* ── Modales ── */
-    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; }
-    .overlay.open { display: flex; }
-    .modal-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; width: 100%; max-width: 440px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-    .modal-box h3 { margin-bottom: 16px; font-size: 1.1rem; }
-    .modal-box textarea { 
-      width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--border); 
-      border-radius: 10px; padding: 12px; color: white; font-size: 0.9rem; min-height: 100px; outline: none;
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
     }
-    .modal-btns { display: flex; gap: 12px; margin-top: 20px; }
-    .btn-m { flex: 1; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 700; border: none; }
-    .btn-m-cancel { background: rgba(255,255,255,0.05); color: var(--text-muto); }
-    .btn-m-confirm { background: var(--accent-r); color: white; }
+
+    .overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-box h3 {
+      margin-bottom: 16px;
+      font-size: 1.1rem;
+    }
+
+    .modal-box textarea {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      color: white;
+      font-size: 0.9rem;
+      min-height: 100px;
+      outline: none;
+    }
+
+    .modal-btns {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .btn-m {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+      border: none;
+    }
+
+    .btn-m-cancel {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muto);
+    }
+
+    .btn-m-confirm {
+      background: var(--accent-r);
+      color: white;
+    }
 
     /* Barra de Scroll */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* ── Módulo Gestión de Usuarios ── */
+    .btn-usr {
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      color: #c4b5fd;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-usr:hover {
+      background: rgba(139, 92, 246, 0.3);
+      color: #ede9fe;
+    }
+
+    .btn-usr-green {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #6ee7b7;
+    }
+
+    .btn-usr-green:hover {
+      background: rgba(16, 185, 129, 0.3);
+    }
+
+    .modal-usr-box {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      padding: 28px 28px 22px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+      animation: slideUp 0.25s ease;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .modal-usr-box h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .usr-field {
+      margin-bottom: 14px;
+    }
+
+    .usr-field label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 5px;
+    }
+
+    .usr-field input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9px;
+      padding: 9px 13px;
+      color: #f1f5f9;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .usr-field input:focus {
+      border-color: #8b5cf6;
+    }
+
+    .usr-error {
+      font-size: 0.8rem;
+      color: #f87171;
+      margin-top: 12px;
+      min-height: 18px;
+    }
+
+    .btn-chat-req {
+      position: absolute;
+      top: 10px;
+      right: 42px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      padding: 5px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+      z-index: 2;
+    }
+
+    .btn-chat-req:hover {
+      background: rgba(59, 130, 246, 0.3);
+      border-color: #3b82f6;
+      color: white;
+    }
+
+    .modal-usr-btns {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    /* Toggle Switch para Habilitar Usuarios */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+      vertical-align: middle;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.2);
+      transition: .3s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    input:checked+.slider {
+      background-color: #10b981;
+    }
+
+    input:checked+.slider:before {
+      transform: translateX(16px);
+    }
+
+
+    .btn-mu {
+      flex: 1;
+      padding: 10px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.88rem;
+      border: none;
+      transition: opacity 0.2s;
+    }
+
+    .btn-mu:hover {
+      opacity: 0.88;
+    }
+
+    .btn-mu-cancel {
+      background: rgba(255, 255, 255, 0.07);
+      color: #94a3b8;
+    }
+
+    .btn-mu-ok {
+      background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+      color: white;
+    }
+
+    .btn-mu-ok-green {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
+
+    /* Tabla de usuarios */
+    .usr-table-wrap {
+      max-height: 340px;
+      overflow-y: auto;
+      margin-top: 4px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    table.usr-t {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    table.usr-t th {
+      padding: 10px 14px;
+      text-align: left;
+      color: #64748b;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    table.usr-t td {
+      padding: 11px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #e2e8f0;
+    }
+
+    table.usr-t tr:last-child td {
+      border-bottom: none;
+    }
+
+    table.usr-t tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .btn-del-usr {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+
+    .btn-del-usr:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    .usr-empty {
+      padding: 30px;
+      text-align: center;
+      color: #475569;
+      font-size: 0.85rem;
+    }
+
+    /* ── Responsive Mobile ── */
+    @media (max-width: 768px) {
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 16px;
+      }
+      .header-left {
+        flex-wrap: wrap;
+      }
+      .app-container {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+      }
+      .panel {
+        overflow: visible;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        max-height: none;
+      }
+      .col-left, .col-mid, .col-right {
+        width: 100% !important;
+      }
+      .resizer {
+        display: none !important;
+      }
+      .req-detail-top {
+        flex-direction: column;
+      }
+      .req-actions {
+        margin-top: 15px;
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .col-right iframe {
+        height: 60vh !important;
+      }
+      #btnVerUsuarios, #btnCrearUsuario, .btn-logout {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+      }
+      /* Reduce padding in table cells on mobile to fit the action buttons */
+      table.docs-t th {
+        padding: 8px 4px;
+        font-size: 0.65rem;
+      }
+      table.docs-t td {
+        padding: 8px 4px;
+        font-size: 0.75rem;
+      }
+      .pill {
+        padding: 2px 6px;
+        font-size: 0.65rem;
+      }
+      .btn-ver-doc {
+        padding: 6px 8px;
+        font-size: 0.8rem; /* Make check/cross legible */
+        min-width: 28px;
+      }
+    }
   </style>
 </head>
+
 <body>
 
   <!-- Header -->
@@ -171,27 +839,34 @@
     <div class="header-left">
       <span style="font-size:1.5rem; filter: hue-rotate(250deg);">📋</span>
       <div>
-        <h1>Control Docus</h1>
+        <h1>Supervisión Documental</h1>
         <div style="font-size:0.75rem; color:var(--text-muto);" id="nombreSupervisor">Supervisor Uno</div>
       </div>
-      <button onclick="window.top.location.href='<?= appUrl ?>?page=Index';" style="margin-left:20px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); color:white; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:0.8rem; font-weight:600;">⬅️ PLANILLA GENERAL</button>
+      <button onclick="window.top.location.href='<?= appUrl ?>?page=Index';"
+        style="margin-left:20px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); color:white; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:0.8rem; font-weight:600;">⬅️
+        PLANILLA GENERAL</button>
       <span class="badge-sup" id="rolSupervisor">Admin</span>
     </div>
     <div id="headerMsg" style="margin:0 20px; font-size:0.85rem;"></div>
-    <div style="display:flex; gap:12px; align-items:center;">
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button class="btn-usr btn-usr-green" onclick="abrirModalVerUsuarios()" id="btnVerUsuarios">👥 Ver
+        Usuarios</button>
+      <button class="btn-usr" onclick="abrirModalCrearUsuario()" id="btnCrearUsuario">➕ Nuevo Usuario</button>
       <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
     </div>
   </header>
 
   <!-- Aplicación Principal Resizable -->
   <div class="app-container" id="appGrid">
-    
+
     <!-- Columna 1: Requerimientos -->
     <div class="panel">
       <div class="panel-header">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span class="panel-title">Requerimientos</span>
-          <button onclick="cargar()" style="background:none; border:none; color:var(--accent-b); cursor:pointer; font-size:0.75rem; font-weight:700;">🔄 ACTUALIZAR</button>
+          <button onclick="cargar()"
+            style="background:none; border:none; color:var(--accent-b); cursor:pointer; font-size:0.75rem; font-weight:700;">🔄
+            ACTUALIZAR</button>
         </div>
         <div class="search-box">
           <input type="text" placeholder="Buscar..." oninput="filtrarReqs(this.value)">
@@ -211,7 +886,7 @@
         <span style="font-size:4rem; opacity:0.1; margin-bottom:15px;">👤</span>
         <p>Seleccioná un requerimiento de la lista para ver sus documentos y estado.</p>
       </div>
-      
+
       <div id="midContent" style="display:none; flex-direction:column; height:100%;">
         <div class="req-detail-top">
           <div class="req-detail-info">
@@ -219,18 +894,21 @@
             <p id="reqSubHeader">---</p>
           </div>
           <div style="display:flex; gap:10px; align-items:center;">
-             <button id="btnAprobarLote" class="btn-sm" style="display:none; background:var(--accent-b); color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:700; cursor:pointer;" onclick="aprobarSeleccionados()">✓ Aprobar Marcados</button>
-             <button class="btn-gen-pdf" id="btnGenPdf" onclick="generarPdf()">
-               <span>📄</span> Generar PDF
-             </button>
+            <button id="btnAprobarLote" class="btn-sm"
+              style="display:none; background:var(--accent-b); color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:700; cursor:pointer;"
+              onclick="aprobarSeleccionados()">✓ Aprobar Marcados</button>
+            <button class="btn-gen-pdf" id="btnGenPdf" onclick="generarPdf()">
+              <span>📄</span> Generar PDF
+            </button>
           </div>
         </div>
-        
+
         <div class="panel-content docs-table-wrap">
           <table class="docs-t">
             <thead>
               <tr>
-                <th style="width:30px;"><input type="checkbox" id="checkAllDocs" onclick="toggleAllDocs(this.checked)"></th>
+                <th style="width:30px;"><input type="checkbox" id="checkAllDocs" onclick="toggleAllDocs(this.checked)">
+                </th>
                 <th style="width:40px;">#</th>
                 <th>Documento</th>
                 <th style="width:110px;">Estado</th>
@@ -254,7 +932,7 @@
         <span style="font-size:4rem; opacity:0.1; margin-bottom:15px;">📄</span>
         <p>Seleccioná un documento de la tabla para previsualizarlo aquí.</p>
       </div>
-      
+
       <div id="prevContent" style="display:none; height:100%; flex-direction:column;">
         <div class="preview-header">
           <div class="preview-title" id="previewLabel">Documento</div>
@@ -272,7 +950,8 @@
   <div class="overlay" id="modalRechazo">
     <div class="modal-box">
       <h3>Rechazar Documento</h3>
-      <p style="font-size:0.8rem; color:var(--text-muto); margin-bottom:12px;">Especificá el motivo para que el usuario pueda corregirlo.</p>
+      <p style="font-size:0.8rem; color:var(--text-muto); margin-bottom:12px;">Especificá el motivo para que el usuario
+        pueda corregirlo.</p>
       <textarea id="motivoRechazo" placeholder="Escribe aquí el motivo..."></textarea>
       <div id="rechazoMsg"></div>
       <div class="modal-btns">
@@ -282,7 +961,109 @@
     </div>
   </div>
 
+  <!-- Modal: Crear Usuario -->
+  <div class="overlay" id="modalCrearUsuario">
+    <div class="modal-usr-box">
+      <h3>➕ <span>Crear Nuevo Usuario</span></h3>
+      <div class="usr-field">
+        <label for="usrNombre">Nombre completo</label>
+        <input type="text" id="usrNombre" placeholder="Ej: Juan Pérez" autocomplete="off">
+      </div>
+      <div class="usr-field">
+        <label for="usrLogin">Nombre de usuario (login)</label>
+        <input type="text" id="usrLogin" placeholder="Ej: jperez" autocomplete="off">
+      </div>
+      <div class="usr-field">
+        <label for="usrPass">Contraseña</label>
+        <input type="password" id="usrPass" placeholder="Mínimo 4 caracteres" autocomplete="new-password">
+      </div>
+      <div class="usr-field" id="autorFieldRow">
+        <label for="usrAutor">Código de Autor (Firma)</label>
+        <input type="text" id="usrAutor" placeholder="Ej: GA, JU, NI" maxlength="2" style="text-transform: uppercase;">
+      </div>
+      <div class="usr-error" id="usrCrearError"></div>
+      <div class="modal-usr-btns">
+        <button class="btn-mu btn-mu-cancel" onclick="cerrarModal('modalCrearUsuario')">Cancelar</button>
+        <button class="btn-mu btn-mu-ok" id="btnConfirmarCrear" onclick="confirmarCrearUsuario()">✓ Crear
+          Usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Ver Usuarios -->
+  <div class="overlay" id="modalVerUsuarios">
+    <div class="modal-usr-box" style="max-width:600px;">
+      <h3 style="margin-bottom:5px;">👥 <span>Usuarios Registrados</span>
+        <span style="margin-left:auto; font-size:0.72rem; color:#64748b; font-weight:400;" id="usrContador"></span>
+      </h3>
+      <div style="font-size: 0.75rem; color: var(--text-muto); margin-bottom: 12px;">
+        Gestionando como: <strong style="color:var(--accent-p);" id="indicadorModeradorLista"></strong>
+      </div>
+      <div id="usrListaError" style="color:#f87171; font-size:0.8rem; font-weight:600; margin-bottom: 5px;"></div>
+      <div class="usr-table-wrap">
+        <table class="usr-t">
+          <thead>
+            <tr>
+              <th style="width:50px;">ID</th>
+              <th style="width:120px;">Nombre</th>
+              <th style="width:100px;">Usuario</th>
+              <th style="width:60px; text-align:center;">Autor</th>
+              <th style="width:60px; text-align:center;">Acceso</th>
+              <th style="width:80px; text-align:center;">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="usrTableBody">
+            <tr>
+              <td colspan="4" class="usr-empty">Cargando...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="usr-error" id="usrListaError"></div>
+      <div class="modal-usr-btns" style="margin-top:16px;">
+        <button class="btn-mu btn-mu-cancel" onclick="cerrarModal('modalVerUsuarios')">Cerrar</button>
+        <button class="btn-mu btn-mu-ok" onclick="abrirModalCrearUsuario()" style="flex:0.6;">➕ Nuevo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Inactividad -->
+  <div class="overlay" id="modalInactividad" style="z-index: 9999;">
+    <div class="modal-box" style="text-align: center;">
+      <div style="font-size: 3.5rem; margin-bottom: 15px;">⏳</div>
+      <h3 style="color: #f1f5f9; font-size: 1.3rem; margin-bottom: 10px;">Sesión Caducada</h3>
+      <p style="color: #94a3b8; font-size: 0.95rem; margin-bottom: 25px; line-height: 1.5;">
+        Por seguridad, tu sesión se ha cerrado automáticamente debido a 30 minutos de inactividad.
+      </p>
+      <button class="btn-confirm" style="width: 100%; padding: 12px; font-size: 1rem;" onclick="logout()">Volver al
+        Login</button>
+    </div>
+  </div>
+
   <script>
+    // ── Timeout por inactividad (30 min) ───────────────────────────
+    let timeoutInactividad;
+    const MINUTOS_INACTIVIDAD = 30;
+
+    function resetInactividad() {
+      clearTimeout(timeoutInactividad);
+      if (!localStorage.getItem('cd_uid')) return; // Evitar si ya cerró sesión
+      timeoutInactividad = setTimeout(mostrarInactividad, MINUTOS_INACTIVIDAD * 60 * 1000);
+    }
+
+    function mostrarInactividad() {
+      // Remover credenciales del frontend inmediatamente
+      localStorage.removeItem('cd_uid');
+      localStorage.removeItem('cd_rol');
+      localStorage.removeItem('cd_nombre');
+      document.getElementById('modalInactividad').classList.add('open');
+    }
+
+    ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'].forEach(evt => {
+      document.addEventListener(evt, resetInactividad, { passive: true });
+    });
+
+    resetInactividad();
     var todosReqs = [];
     var reqSeleccionado = null;
     var docsActuales = [];
@@ -301,10 +1082,10 @@
 
       document.addEventListener('mousemove', e => {
         if (!draggingR1 && !draggingR2) return;
-        
+
         const rect = grid.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        
+
         // Obtener anchos actuales para recalcular fr
         let columns = grid.style.gridTemplateColumns.split(' ');
         if (!columns || columns.length < 5) columns = ['280px', '6px', '1fr', '6px', '1fr'];
@@ -318,7 +1099,7 @@
           const newW2 = Math.max(200, Math.min(x - w1 - 6, rect.width - w1 - 300));
           columns[2] = newW2 + 'px';
         }
-        
+
         grid.style.gridTemplateColumns = columns.join(' ');
       });
 
@@ -330,17 +1111,17 @@
 
     // ── Funciones de Datos (Adaptadas) ─────────────────────────────
     var cdNombre = localStorage.getItem('cd_nombre') || 'Supervisor';
-    var cdUid    = localStorage.getItem('cd_uid')    || '';
-    var cdRol    = localStorage.getItem('cd_rol')    || 'supervisor';
+    var cdUid = localStorage.getItem('cd_uid') || '';
+    var cdRol = localStorage.getItem('cd_rol') || 'supervisor';
 
     document.getElementById('nombreSupervisor').textContent = cdNombre;
     document.getElementById('rolSupervisor').textContent = (cdRol === 'admin') ? 'Administrador' : 'Supervisor';
-    
+
     if (!cdUid) logout(); // Fallback rápido
 
     function logout() {
       localStorage.clear();
-      try { window.top.location.href = '<?= appUrl ?>?page=ControlDocus'; } catch(e){}
+      try { window.top.location.href = '<?= appUrl ?>?page=ControlDocus'; } catch (e) { }
     }
 
     function cargar() {
@@ -377,11 +1158,12 @@
         const item = document.createElement('div');
         item.className = 'req-item' + (reqSeleccionado?.idReq === req.idReq ? ' selected' : '');
         item.style.position = 'relative';
-        item.innerHTML = 
+        item.innerHTML =
           '<div class="req-name">' + req.apellidoNombre + '</div>' +
           '<div class="req-sub">Aut: ' + req.autoridad + '</div>' +
           fechaHtml +
           '<div class="req-user">👤 ' + req.nombreUsuario + '</div>' +
+          '<button class="btn-chat-req" title="Chat privado con el usuario" onclick="event.stopPropagation(); initPrivateChat(\'' + req.idUsuario + '\', \'' + req.nombreUsuario.replace(/'/g, "\\'") + '\')">💬</button>' +
           '<button class="btn-del-req" title="Eliminar requerimiento" onclick="event.stopPropagation(); confirmarEliminarReq(\'' + req.idReq + '\')">🗑️</button>';
         item.onclick = () => seleccionarReq(req);
         list.appendChild(item);
@@ -389,8 +1171,8 @@
     }
 
     function filtrarReqs(q) {
-      const f = todosReqs.filter(r => 
-        r.apellidoNombre.toLowerCase().includes(q.toLowerCase()) || 
+      const f = todosReqs.filter(r =>
+        r.apellidoNombre.toLowerCase().includes(q.toLowerCase()) ||
         r.nombreUsuario.toLowerCase().includes(q.toLowerCase())
       );
       renderReqs(f);
@@ -404,10 +1186,10 @@
       document.getElementById('midContent').style.display = 'flex';
       document.getElementById('reqApellido').textContent = req.apellidoNombre;
       document.getElementById('reqSubHeader').textContent = `Aut: ${req.autoridad} | Usuario: ${req.nombreUsuario} | Vence: ${req.fechaVencimiento}`;
-      
+
       const btnPdf = document.getElementById('btnGenPdf');
       btnPdf.disabled = (req.aprobados < 1);
-      
+
       const list = document.getElementById('docsList');
       list.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:40px; opacity:0.5;">Cargando documentos...</td></tr>';
 
@@ -422,8 +1204,8 @@
     function renderDocs(docs) {
       const list = document.getElementById('docsList');
       list.innerHTML = '';
-      const ecMap = {'PENDIENTE':'pill-p','CARGADO':'pill-c','APROBADO':'pill-a','RECHAZADO':'pill-r'};
-      const elMap = {'PENDIENTE':'PENDIENTE','CARGADO':'EN REVISIÓN','APROBADO':'APROBADO','RECHAZADO':'RECHAZADO'};
+      const ecMap = { 'PENDIENTE': 'pill-p', 'CARGADO': 'pill-c', 'APROBADO': 'pill-a', 'RECHAZADO': 'pill-r' };
+      const elMap = { 'PENDIENTE': 'PENDIENTE', 'CARGADO': 'EN REVISIÓN', 'APROBADO': 'APROBADO', 'RECHAZADO': 'RECHAZADO' };
 
       docs.forEach(d => {
         const tr = document.createElement('tr');
@@ -432,16 +1214,16 @@
 
         let btns = '';
         let canCheck = (d.estado === 'CARGADO');
-        
+
         if (d.urlDrive && d.estado !== 'PENDIENTE') {
           btns += '<button class="btn-ver-doc" onclick="previsualizar(\'' + d.urlDrive + '\', \'' + d.nombreReq.replace(/'/g, "\\'") + '\')">Ver</button>';
         }
         if (d.estado === 'CARGADO') {
-          btns += ' <button id="btn-apr-' + d.idDoc + '" class="btn-ver-doc" style="color:var(--accent-s); border-color:var(--accent-s);" onclick="aprobar(\'' + d.idDoc + '\')">✓</button>';
+          btns += ' <button id="btn-apr-' + d.idDoc + '" class="btn-ver-doc" style="color:var(--accent-s); border-color:var(--accent-s);" onclick="aprobar(\'' + d.idDoc + '\', \'' + cdNombre + '\')">✓</button>';
           btns += ' <button class="btn-ver-doc" style="color:var(--accent-r); border-color:var(--accent-r);" onclick="abrirRechazo(\'' + d.idDoc + '\')">✕</button>';
         }
 
-        tr.innerHTML = 
+        tr.innerHTML =
           '<td><input type="checkbox" class="doc-checkbox" data-id="' + d.idDoc + '" ' + (canCheck ? '' : 'disabled') + ' onchange="verificarBotonLote()"></td>' +
           '<td style="opacity:0.5;">#' + d.numReq + '</td>' +
           '<td><div style="font-weight:500;">' + d.nombreReq + '</div>' + (d.obsRechazo ? '<div style="font-size:0.7rem; color:var(--accent-r);">⚠ ' + d.obsRechazo + '</div>' : '') + '</td>' +
@@ -466,12 +1248,12 @@
     async function aprobarSeleccionados() {
       const boxes = Array.from(document.querySelectorAll('.doc-checkbox:checked'));
       if (boxes.length === 0) return;
-      
+
       const ids = boxes.map(b => b.dataset.id);
       const btn = document.getElementById('btnAprobarLote');
       btn.disabled = true;
       btn.textContent = 'Procesando aprobación...';
-      
+
       google.script.run
         .withSuccessHandler(res => {
           if (res.ok) {
@@ -485,14 +1267,18 @@
           alert('Error crítico: ' + e.message);
           btn.disabled = false;
         })
-        .aprobarDocumentosLote(ids);
+        .aprobarDocumentosLote(ids, cdNombre);
     }
 
     function previsualizar(url, label) {
+      if (window.innerWidth <= 768) {
+        window.open(url, '_blank');
+        return;
+      }
       document.getElementById('prevEmpty').style.display = 'none';
       document.getElementById('prevContent').style.display = 'flex';
       document.getElementById('previewLabel').textContent = label;
-      
+
       let src = url;
       if (url.includes('drive.google.com/file/')) {
         const match = url.match(/\/file\/d\/([^\/]+)/);
@@ -508,10 +1294,10 @@
     }
 
     // ── Acciones (Aprobar/Rechazar/PDF) ────────────────────────────
-    function aprobar(idDoc) {
+    function aprobar(idDoc, nombreAppCtx) {
       const btn = document.getElementById('btn-apr-' + idDoc);
       if (btn) btn.disabled = true;
-      
+
       // Optimización: actualización visual inmediata
       const doc = docsActuales.find(d => d.idDoc === idDoc);
       if (doc) {
@@ -520,13 +1306,13 @@
         renderDocs(docsActuales);
         renderReqs(todosReqs);
       }
-      
-      google.script.run.withSuccessHandler(res => { 
-        if(!res.ok) {
+
+      google.script.run.withSuccessHandler(res => {
+        if (!res.ok) {
           alert('Error al aprobar: ' + res.message);
           seleccionarReq(reqSeleccionado); // revertir si hubo error real
         }
-      }).aprobarDocumento(idDoc);
+      }).aprobarDocumento(idDoc, nombreAppCtx || cdNombre);
     }
     function abrirRechazo(idDoc) {
       idDocParaRechazar = idDoc;
@@ -536,7 +1322,7 @@
 
     function confirmarEliminarReq(idReq) {
       if (!confirm('¿Estás seguro de que deseas eliminar este requerimiento y todos sus documentos asociados? También se eliminará su carpeta en Drive. Esta acción no se puede deshacer.')) return;
-      
+
       // Refresco espontáneo: eliminar del array local y renderizar inmediatamente
       todosReqs = todosReqs.filter(r => r.idReq !== idReq);
       renderReqs(todosReqs);
@@ -559,27 +1345,172 @@
     }
     function confirmarRechazo() {
       const m = document.getElementById('motivoRechazo').value.trim();
-      if(!m) return;
+      if (!m) return;
       google.script.run.withSuccessHandler(res => {
         cerrarModal('modalRechazo');
         seleccionarReq(reqSeleccionado);
       }).rechazarDocumento(idDocParaRechazar, m);
     }
     function cerrarModal(id) { document.getElementById(id).classList.remove('open'); }
-    
+
     function generarPdf() {
       if (!reqSeleccionado) return;
       document.getElementById('btnGenPdf').disabled = true;
       google.script.run.withSuccessHandler(res => {
         document.getElementById('btnGenPdf').disabled = false;
-        if(res.ok) previsualizar(res.urlPdf, 'PDF Unificado');
-      }).generarPdfCD(reqSeleccionado.idReq);
+        if (res.ok) previsualizar(res.urlPdf, 'PDF Unificado');
+      }).generarPdfCD(reqSeleccionado.idReq, cdNombre);
     }
 
     // Autosincronización en segundo plano (cada 60s)
     setInterval(cargar, 60000);
 
     cargar();
+
+    // ── Gestión de Usuarios ──────────────────────────────────────────────────────
+
+    function abrirModalCrearUsuario() {
+      document.getElementById('usrNombre').value = '';
+      document.getElementById('usrLogin').value = '';
+      document.getElementById('usrPass').value = '';
+      document.getElementById('usrAutor').value = '';
+      document.getElementById('usrCrearError').textContent = '';
+      document.getElementById('btnConfirmarCrear').disabled = false;
+      document.getElementById('btnConfirmarCrear').textContent = '✓ Crear Usuario';
+      document.getElementById('modalCrearUsuario').classList.add('open');
+    }
+
+    function confirmarCrearUsuario() {
+      const nombre = document.getElementById('usrNombre').value.trim();
+      const usuario = document.getElementById('usrLogin').value.trim();
+      const pass = document.getElementById('usrPass').value.trim();
+      const autor = document.getElementById('usrAutor').value.trim().toUpperCase();
+      const errEl = document.getElementById('usrCrearError');
+      errEl.textContent = '';
+
+      if (!nombre || !usuario || !pass || !autor) {
+        errEl.textContent = '⚠ Completá todos los campos (incluyendo el Código de Autor).';
+        return;
+      }
+      if (pass.length < 4) {
+        errEl.textContent = '⚠ La contraseña debe tener al menos 4 caracteres.';
+        return;
+      }
+
+      const btn = document.getElementById('btnConfirmarCrear');
+      btn.disabled = true;
+      btn.textContent = 'Creando...';
+
+      google.script.run
+        .withSuccessHandler(res => {
+          btn.disabled = false;
+          btn.textContent = '✓ Crear Usuario';
+          if (res.ok) {
+            errEl.style.color = '#6ee7b7';
+            errEl.textContent = '✅ ' + res.message;
+            setTimeout(() => {
+              cerrarModal('modalCrearUsuario');
+              errEl.style.color = '#f87171';
+            }, 1800);
+          } else {
+            errEl.style.color = '#f87171';
+            errEl.textContent = '⚠ ' + res.message;
+          }
+        })
+        .withFailureHandler(e => {
+          btn.disabled = false;
+          btn.textContent = '✓ Crear Usuario';
+          errEl.textContent = '⚠ Error de conexión: ' + e.message;
+        })
+        .crearUsuarioCD(nombre, usuario, pass, cdRol, autor);
+    }
+
+    function abrirModalVerUsuarios() {
+      document.getElementById('usrTableBody').innerHTML = '<tr><td colspan="4" class="usr-empty">Cargando...</td></tr>';
+      document.getElementById('usrListaError').textContent = '';
+      document.getElementById('usrContador').textContent = '';
+      document.getElementById('modalVerUsuarios').classList.add('open');
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (!res.ok) {
+            document.getElementById('usrListaError').textContent = '⚠ ' + res.message;
+            return;
+          }
+          const usuarios = res.data || [];
+          document.getElementById('indicadorModeradorLista').textContent = cdNombre;
+          const tbody = document.getElementById('usrTableBody');
+          if (usuarios.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="usr-empty">No hay usuarios con rol "usuario" registrados.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = '';
+          usuarios.forEach(u => {
+            const isChecked = u.status ? 'checked' : '';
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+              '<td style="opacity:0.5; font-size:0.75rem;">#' + u.id + '</td>' +
+              '<td style="font-weight:600;">' + u.nombre + '</td>' +
+              '<td style="font-family:monospace; color:#a5b4fc;">' + u.usuario + '</td>' +
+              '<td style="text-align:center; font-weight:700; color:var(--accent-p);">' + (u.AUTOR_COD || '-') + '</td>' +
+              '<td style="text-align:center;">' +
+              '<label class="switch"><input type="checkbox" ' + isChecked + ' onchange="toggleStatusUsr(\'' + u.id + '\', this.checked)"><span class="slider"></span></label>' +
+              '</td>' +
+              '<td style="text-align:center;"><button class="btn-del-usr" onclick="eliminarUsuario(\'' + u.id + '\', \'' + u.usuario + '\')">🗑 Eliminar</button></td>';
+            tbody.appendChild(tr);
+          });
+        })
+        .withFailureHandler(e => {
+          document.getElementById('usrListaError').textContent = '⚠ Error: ' + e.message;
+        })
+        .listarUsuariosCD(cdRol);
+    }
+
+    function eliminarUsuario(idUsr, nombreUsr) {
+      if (!confirm('¿Eliminar al usuario "' + nombreUsr + '"?\n\nEsta acción no se puede deshacer.')) return;
+
+      // Eliminación optimista: quitar fila de la tabla
+      const tbody = document.getElementById('usrTableBody');
+      Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+        if (tr.innerHTML.includes('#' + idUsr + '</td>')) tr.remove();
+      });
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (!res.ok) {
+            document.getElementById('usrListaError').textContent = '⚠ ' + res.message;
+            abrirModalVerUsuarios(); // Recarga para revertir
+          } else {
+            abrirModalVerUsuarios(); // Recarga la tabla para mostrar los nuevos IDs correlativos.
+          }
+        })
+        .withFailureHandler(e => {
+          document.getElementById('usrListaError').textContent = '⚠ Error: ' + e.message;
+          abrirModalVerUsuarios();
+        })
+        .eliminarUsuarioCD(idUsr, cdRol);
+    }
+
+    function toggleStatusUsr(idUsr, status) {
+      google.script.run
+        .withSuccessHandler(res => {
+          if (!res.ok) {
+            document.getElementById('usrListaError').textContent = '⚠ ' + res.message;
+            abrirModalVerUsuarios(); // revert visual
+          }
+        })
+        .withFailureHandler(e => {
+          document.getElementById('usrListaError').textContent = '⚠ Error: ' + e.message;
+          abrirModalVerUsuarios();
+        })
+        .cambiarStatusUsuarioCD(idUsr, status, cdRol);
+    }
   </script>
+
+  <?!= include('ChatWidget'); ?>
+
+  <?!= include('AssistantNico'); ?>
 </body>
+
+
 </html>

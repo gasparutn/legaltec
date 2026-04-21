@@ -1,0 +1,193 @@
+<script>
+  /**
+   * Renderiza la tabla principal con los datos proporcionados
+   */
+  function renderTable(headers, data) {
+    const tableHeadersRow = document.getElementById('tableHeaders');
+    const tableBody = document.getElementById('tableBody');
+    if (!tableHeadersRow || !tableBody) return;
+
+    tableHeadersRow.innerHTML = '';
+    tableBody.innerHTML = '';
+
+    // Encabezados
+    headers.forEach(h => {
+      const th = document.createElement('th');
+      th.textContent = h || '';
+      tableHeadersRow.appendChild(th);
+    });
+
+    // Paginación
+    let dataToShow = data;
+    if (rowsPerPage !== 'all') {
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = start + parseInt(rowsPerPage);
+      dataToShow = data.slice(start, end);
+    }
+
+    const bodyFragment = document.createDocumentFragment();
+    dataToShow.forEach((rowData, index) => {
+      const originalIdxIndex = headers.length + hiddenHeaders.length;
+      const originalIdx = rowData[originalIdxIndex];
+
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.className = 'fade-in';
+      tr.style.animationDelay = (index * 0.02) + 's';
+
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('.option-button') || e.target.closest('.action-checkbox')) return;
+        toggleRowExpansion(tr, rowData);
+      });
+
+      for (let i = 0; i < headers.length; i++) {
+        const cellData = rowData[i];
+        const hName = headers[i] || '';
+        const td = document.createElement('td');
+
+        if (hName === 'CHECK') {
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'action-checkbox';
+          cb.checked = cellData === true;
+          cb.dataset.originalIdx = originalIdx;
+          cb.addEventListener('change', function () {
+            handleCheckChange(this, parseInt(this.dataset.originalIdx), this.checked);
+          });
+          td.appendChild(cb);
+          td.style.textAlign = 'center';
+        } else if (hName === 'OPC') {
+          td.appendChild(createOptBtn('W', 'preview-word', 'Contrato', () => handlePreviewFile(rowData, 'CONTRATO')));
+          td.appendChild(createOptBtn('📄', 'preview-txt', 'Resolución', () => handlePreviewFile(rowData, 'RESOLUCION')));
+          td.appendChild(createOptBtn('&#9998;', 'edit', 'Editar', () => handleEditClick(originalIdx)));
+          td.appendChild(createOptBtn('&#x21BB;', 'renew', 'Renovar', () => handleRenovarClick(originalIdx, rowData)));
+          td.appendChild(createOptBtn('&#128465;', 'delete', 'Eliminar', () => handleDeleteClick(originalIdx)));
+          td.style.minWidth = '165px';
+        } else if (hName === 'ESTADO') {
+          td.textContent = cellData;
+          if (cellData) {
+            let normalized = String(cellData).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            let cls = 'status-' + normalized.replace(/\s+/g, '-');
+            if (cellData.startsWith('Proceso')) cls = 'status-proceso';
+            td.classList.add(cls);
+          }
+        } else if (hName === 'TOTAL') {
+          const val = parseFloat(String(cellData || '').replace(/[^0-9.-]+/g, ''));
+          td.textContent = !isNaN(val) ? "$" + val.toLocaleString('es-AR') : cellData;
+        } else {
+          td.textContent = cellData;
+        }
+        tr.appendChild(td);
+      }
+      bodyFragment.appendChild(tr);
+    });
+    tableBody.appendChild(bodyFragment);
+  }
+
+  function createOptBtn(html, cls, title, onClick) {
+    const b = document.createElement('button');
+    b.className = 'option-button ' + cls;
+    b.innerHTML = html;
+    b.title = title;
+    b.addEventListener('click', (e) => { e.stopPropagation(); onClick(e); });
+    return b;
+  }
+
+  function toggleRowExpansion(tr, rowData) {
+    const next = tr.nextElementSibling;
+    if (next && next.classList.contains('detail-row')) {
+      next.remove();
+      tr.classList.remove('expanded');
+    } else {
+      const detailTr = document.createElement('tr');
+      detailTr.className = 'detail-row';
+      const detailTd = document.createElement('td');
+      detailTd.colSpan = currentHeaders.length;
+      const detailContent = document.createElement('div');
+      detailContent.className = 'detail-content';
+
+      const hiddenFieldsMap = {};
+      hiddenHeaders.forEach((label, i) => {
+        const val = rowData[currentHeaders.length + i];
+        hiddenFieldsMap[label] = (val !== undefined && val !== '') ? val : '';
+      });
+
+      const fieldsToShow = [
+        { field: 'CUOTA', label: 'CUOTAS' },
+        { field: 'SECRETARIO', label: 'SECRETARIO' },
+        { field: 'CORREO SECRETARIO', label: 'CORREO SECRETARIO' },
+        { field: 'DOMICILIO', label: 'DOMICILIO' },
+        { field: 'LOCALIDAD', label: 'LOCALIDAD' },
+        { field: 'GENERA CONTRATO', label: 'GENERA CONTRATO' },
+        { field: 'GENERA RESOLUCION', label: 'GENERA RESOLUCION' },
+        { field: 'FECHA NOTIFICA', label: 'FECHA NOTIFICA' },
+        { field: 'BAJA CONTRATO', label: 'FECHA DE BAJA' },
+        { field: 'AUTOR', label: 'AUTOR' }
+      ];
+
+      fieldsToShow.forEach((item) => {
+        const val = hiddenFieldsMap[item.field];
+        if (val) {
+          const div = document.createElement('div');
+          div.className = 'detail-item';
+          div.innerHTML = `<span class="label">${item.label}: </span><span class="value">${val}</span>`;
+          detailContent.appendChild(div);
+        }
+      });
+
+      detailTd.appendChild(detailContent);
+      detailTr.appendChild(detailTd);
+      tr.after(detailTr);
+      tr.classList.add('expanded');
+    }
+  }
+
+  function updatePaginationControls() {
+    const totalRows = filteredData.length;
+    const totalPages = rowsPerPage === 'all' ? 1 : Math.ceil(totalRows / rowsPerPage);
+    if (currentPage > totalPages) currentPage = totalPages || 1;
+
+    document.getElementById('pageInfo').textContent = `Página ${currentPage} de ${totalPages || 1}`;
+    document.getElementById('prevPageBtn').disabled = currentPage === 1;
+    document.getElementById('nextPageBtn').disabled = currentPage === totalPages || totalPages === 0;
+    document.getElementById('rowCountInfo').textContent = `(Total: ${totalRows} registros)`;
+  }
+
+  /**
+   * Maneja el cambio del checkbox de procesamiento (Optimista)
+   */
+  function handleCheckChange(checkbox, idx, nuevoValor) {
+    // Optimismo: visualmente ya cambió, solo lo deshabilitamos un momento
+    checkbox.disabled = true;
+    checkbox.style.opacity = '0.7';
+
+    google.script.run
+      .withSuccessHandler(r => {
+        checkbox.disabled = false;
+        checkbox.style.opacity = '1';
+        if (r.success) {
+          showMessage(nuevoValor ? 'Fila marcada como procesada.' : 'Fila habilitada para procesar.');
+          // Actualizar modelo local
+          const checkIdx = currentHeaders.indexOf('CHECK');
+          const originalIdxIndex = currentHeaders.length + hiddenHeaders.length;
+          const fila = originalData.find(r => r[originalIdxIndex] === idx);
+          if (fila && checkIdx >= 0) {
+            fila[checkIdx] = nuevoValor;
+            // No refrescamos toda la tabla para no perder el foco
+          }
+        } else {
+          // Revertir si falló
+          checkbox.checked = !nuevoValor;
+          showMessage('Error: ' + r.message, true);
+        }
+      })
+      .withFailureHandler(err => {
+        checkbox.checked = !nuevoValor;
+        checkbox.disabled = false;
+        checkbox.style.opacity = '1';
+        showMessage('Error de red: ' + err.message, true);
+      })
+      .updateCheckValue(idx, nuevoValor);
+  }
+
+</script>

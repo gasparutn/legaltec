@@ -1,0 +1,556 @@
+<style>
+/* CSS del Chat Flotante */
+.chat-widget-btn {
+  display: none;
+}
+
+.chat-widget-btn:hover { transform: scale(1.05); }
+.chat-widget-icon { font-size: 24px; color: white; }
+.chat-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.70rem;
+  font-weight: 700;
+  border-radius: 10px;
+  min-width: 18px;
+  padding: 2px 4px;
+  text-align: center;
+  border: 2px solid #1e293b;
+  display: none;
+}
+
+.chat-window {
+  position: fixed;
+  bottom: 110px;
+  right: 20px;
+  width: 320px;
+  height: 420px;
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  z-index: 9991;
+  transform-origin: bottom right;
+  transition: transform 0.3s, opacity 0.3s;
+  transform: scale(0);
+  opacity: 0;
+  overflow: hidden;
+}
+.chat-window.open {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.chat-header {
+  background: rgba(0,0,0,0.2);
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.chat-title { font-size: 0.9rem; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 6px; }
+.chat-close { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1.2rem; }
+.chat-close:hover { color: white; }
+
+.chat-online-status {
+  padding: 5px 14px;
+  background: rgba(16,185,129,0.1);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 0.7rem;
+  color: #6ee7b7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-body {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255,255,255,0.01);
+}
+.chat-msg {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  position: relative;
+  word-wrap: break-word;
+}
+.chat-msg-mine {
+  background: #3b82f6;
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 2px;
+}
+.chat-msg-other {
+  background: rgba(255,255,255,0.1);
+  color: #e2e8f0;
+  align-self: flex-start;
+  border-bottom-left-radius: 2px;
+}
+.chat-msg-sender {
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+
+.chat-footer {
+  padding: 10px;
+  background: rgba(0,0,0,0.2);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-emojis {
+  display: flex;
+  gap: 8px;
+}
+.chat-emoji-btn {
+  background: none; border: none; font-size: 1.1rem; cursor: pointer; opacity: 0.8; transition: transform 0.1s;
+}
+.chat-emoji-btn:hover { transform: scale(1.2); opacity: 1; }
+
+.chat-input-row {
+  display: flex;
+  gap: 6px;
+}
+.chat-input-row input {
+  flex: 1;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 20px;
+  padding: 6px 12px;
+  color: white;
+  font-size: 0.85rem;
+  outline: none;
+}
+.chat-input-row input:focus { border-color: #8b5cf6; }
+.chat-send-btn {
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.chat-send-btn:hover { background: #7c3aed; }
+
+/* Mobile responsiveness */
+@media (max-width: 480px) {
+  .chat-window {
+    width: 90vw;
+    right: 5vw;
+    height: 60vh;
+    bottom: 90px;
+    border-radius: 10px;
+  }
+  #chatPillContainer {
+    bottom: 20px !important;
+    right: 20px !important;
+  }
+}
+</style>
+
+<!-- Status Pill (Online Monitor) - Relocated next to Nico (Left side) -->
+<div id="chatPillContainer" style="position: fixed; bottom: 45px; right: 115px; display: flex; align-items: center; gap: 10px; z-index: 9990;">
+  <!-- Pill de monitor -->
+  <div id="chatOnlinePill" style="background: rgba(30,41,59, 0.85); border: 1px solid rgba(255,255,255,0.15); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; color: #f1f5f9; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); backdrop-filter: blur(4px);">
+    <span id="chatPillDot" style="color: #ef4444;">🔴</span> <span id="chatPillCount">0</span>
+  </div>
+</div>
+
+
+
+
+<div class="chat-window" id="chatWindow">
+  <div class="chat-header">
+    <div class="chat-title">
+      <button id="chatBackBtn" onclick="volverListaChat()" style="display:none; background:none; border:none; color:white; cursor:pointer; margin-right:8px; font-size:1.1rem; line-height:1;">❮</button>
+      <span id="chatTitleSpan">💬 Soporte / Chat</span>
+    </div>
+    <button class="chat-close" onclick="toggleChatWindow()">✖</button>
+  </div>
+  <div id="chatSupervisorMode" style="display:none; padding:4px 14px; background:rgba(0,0,0,0.3); border-bottom:1px solid rgba(255,255,255,0.05); text-align:right;">
+    <label style="font-size:0.75rem; color:#94a3b8; cursor:pointer; display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+      <input type="checkbox" id="chatGhostToggle" onchange="toggleGhostMode()" style="cursor:pointer;" checked> 
+      <span>👁️ Ocultar conexión</span>
+    </label>
+  </div>
+  <div class="chat-online-status" id="chatOnlineStatus" style="display:none;"></div>
+  
+  <div class="chat-body" id="chatBody" style="padding:0;">
+    <!-- Lista de usuarios para Supervisor -->
+    <div id="chatUsersList" style="display:none; flex:1; flex-direction:column; overflow-y:auto; padding:10px;">
+      <div style="text-align:center; padding:20px; color:#94a3b8; font-size:0.85rem;">Cargando usuarios...</div>
+    </div>
+    
+    <!-- Hilo de Mensajes -->
+    <div id="chatMessages" style="display:flex; flex:1; flex-direction:column; gap:12px; padding:12px; overflow-y:auto;">
+    </div>
+  </div>
+  
+  <div class="chat-footer" id="chatFooter">
+    <div class="chat-emojis">
+      <button class="chat-emoji-btn" onclick="addEmoji('👍')">👍</button>
+      <button class="chat-emoji-btn" onclick="addEmoji('✅')">✅</button>
+      <button class="chat-emoji-btn" onclick="addEmoji('🙏')">🙏</button>
+      <button class="chat-emoji-btn" onclick="addEmoji('📄')">📄</button>
+      <button class="chat-emoji-btn" onclick="addEmoji('😊')">😊</button>
+      <button class="chat-emoji-btn" onclick="addEmoji('⛔')">⛔</button>
+    </div>
+    <form class="chat-input-row" onsubmit="sendChatMsg(event)">
+      <input type="text" id="chatInput" placeholder="Escribe un mensaje..." autocomplete="off">
+      <button type="submit" class="chat-send-btn">➤</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  let chatLastMsgId = 0;
+  let chatUnreadCount = 0;
+  let chatIsOpen = false;
+  let chatSyncTimer = null;
+  let chatGhostMode = true; // Por defecto el Supervisor entra en modo oculto
+  let chatTargetUid = null;  // Para supervisores: usuario destino
+  let chatTargetName = ""; 
+  let chatAllUsers = []; // Solo para supervisores: lista de todos los usuarios
+  let chatOnlineDict = {}; // para redibujar rápido la lista
+  const CHAT_SYNC_INTERVAL = 8000; // cada 8 segundos para reducir carga en el servidor
+
+  function toggleGhostMode() {
+    const cb = document.getElementById('chatGhostToggle');
+    chatGhostMode = cb.checked;
+    clearTimeout(chatSyncTimer);
+    syncChatLoop(); // Forzar actualización de status en los demás
+  }
+
+  function volverListaChat() {
+    chatTargetUid = null;
+    chatTargetName = "";
+    document.getElementById('chatMessages').style.display = 'none';
+    document.getElementById('chatFooter').style.display = 'none';
+    document.getElementById('chatBackBtn').style.display = 'none';
+    document.getElementById('chatSupervisorMode').style.display = 'block';
+    document.getElementById('chatTitleSpan').innerText = '💬 Contactos';
+    document.getElementById('chatUsersList').style.display = 'flex';
+    
+    // Al volver, si quieres, sincronizamos
+    clearTimeout(chatSyncTimer);
+    syncChatLoop();
+  }
+
+  function toggleChatWindow() {
+    chatIsOpen = !chatIsOpen;
+    const w = document.getElementById('chatWindow');
+    if (chatIsOpen) {
+      w.classList.add('open');
+      chatUnreadCount = 0;
+      actualizarBadge();
+      
+      let localRol = (typeof cdRol !== 'undefined' && cdRol) ? cdRol : localStorage.getItem('cd_rol') || 'usuario';
+      if (localRol !== 'usuario' && chatTargetUid === null) {
+        document.getElementById('chatMessages').style.display = 'none';
+        document.getElementById('chatFooter').style.display = 'none';
+        document.getElementById('chatUsersList').style.display = 'flex';
+        document.getElementById('chatTitleSpan').innerText = '💬 Contactos';
+      } else {
+        const b = document.getElementById('chatMessages');
+        b.scrollTop = b.scrollHeight;
+      }
+    } else {
+      w.classList.remove('open');
+    }
+  }
+
+  /**
+   * Inicializa un chat privado específico (Usado por Supervisor)
+   */
+  function initPrivateChat(targetUid, targetName) {
+    chatTargetUid = String(targetUid);
+    chatTargetName = targetName;
+    
+    // Preparar UI
+    chatLastMsgId = 0;
+    document.getElementById('chatUsersList').style.display = 'none';
+    document.getElementById('chatSupervisorMode').style.display = 'none';
+    
+    const msgsContainer = document.getElementById('chatMessages');
+    msgsContainer.style.display = 'flex';
+    document.getElementById('chatFooter').style.display = 'flex';
+    document.getElementById('chatBackBtn').style.display = 'inline-block';
+    document.getElementById('chatTitleSpan').innerText = `Chat: ${targetName}`;
+    
+    msgsContainer.innerHTML = `
+      <div style="text-align:center; font-size:0.75rem; color:#94a3b8; margin: 10px 0;">
+        Conversación privada con <b>${targetName}</b>
+      </div>
+    `;
+
+    if (!chatIsOpen) toggleChatWindow();
+    
+    // Forzar sincronización inmediata
+    if(chatSyncTimer) clearTimeout(chatSyncTimer);
+    syncChatLoop();
+  }
+
+  function addEmoji(emoji) {
+    const input = document.getElementById('chatInput');
+    input.value += emoji;
+    input.focus();
+  }
+
+  function actualizarBadge() {
+    const badge = document.getElementById('chatBadgeUnread');
+    if (chatUnreadCount > 0 && !chatIsOpen) {
+      badge.textContent = chatUnreadCount;
+      badge.style.display = 'block';
+    } else {
+      badge.style.display = 'none';
+      chatUnreadCount = 0;
+    }
+  }
+
+  function syncChatLoop() {
+    let localUid = (typeof cdUid !== 'undefined' && cdUid) ? cdUid : localStorage.getItem('cd_uid');
+    let localRol = (typeof cdRol !== 'undefined' && cdRol) ? cdRol : localStorage.getItem('cd_rol') || 'usuario';
+    let localNombre = (typeof cdNombre !== 'undefined' && cdNombre) ? cdNombre : localStorage.getItem('cd_nombre') || 'Usuario';
+    
+    if(!localUid) return; // Definido en la app principal
+    google.script.run
+      .withSuccessHandler(res => {
+        if(res.ok) {
+          procesarNuevosMensajes(res.msgs);
+          procesarOnlineStatus(res.onlineInfo);
+        } else {
+          // Si hubo un error lógico en el backend, mostrarlo en el online status
+          const el = document.getElementById('chatOnlineStatus');
+          if (el) el.innerHTML = '<span style="color:#ef4444;">Error sinc: ' + (res.error || 'Desconocido') + '</span>';
+        }
+        chatSyncTimer = setTimeout(syncChatLoop, CHAT_SYNC_INTERVAL);
+      })
+      .withFailureHandler(e => {
+        const el = document.getElementById('chatOnlineStatus');
+        if (el) el.innerHTML = '<span style="color:#ef4444;">Error de red/servidor. Reintentando...</span>';
+        chatSyncTimer = setTimeout(syncChatLoop, CHAT_SYNC_INTERVAL);
+      })
+      .chatSyncCD(localUid, localRol, localNombre, chatLastMsgId, chatGhostMode, chatTargetUid);
+  }
+
+  function procesarOnlineStatus(info) {
+    const el = document.getElementById('chatOnlineStatus');
+    const pillDot = document.getElementById('chatPillDot');
+    const pillCount = document.getElementById('chatPillCount');
+    
+    if (!info) return;
+    
+    // Para renderizar la lista de Contactos (solo tiene sentido para admin/sup)
+    let localRol = (typeof cdRol !== 'undefined' && cdRol) ? cdRol : localStorage.getItem('cd_rol') || 'usuario';
+    if (localRol !== 'usuario') {
+      chatOnlineDict = info.usuarios || {};
+      renderUsersList();
+    }
+
+    let countSup = (info.supervisores && Object.keys(info.supervisores).length) ? Object.keys(info.supervisores).length : 0;
+    let countUsr = (info.usuarios && Object.keys(info.usuarios).length) ? Object.keys(info.usuarios).length : 0;
+    let totalActivos = countSup + countUsr;
+
+    if (totalActivos === 0) {
+       if (el) el.textContent = 'Nadie conectado';
+       if (pillDot) pillDot.textContent = '🔴';
+       if (pillCount) pillCount.textContent = '0';
+    } else {
+       if (pillDot) pillDot.textContent = '🟢';
+       if (pillCount) pillCount.textContent = totalActivos;
+    }
+    
+    // Si somos usuario, mostrar a los supervisores online
+    if (localRol === 'usuario') {
+      if (countSup > 0) {
+        if (el) { el.style.display = 'block'; el.innerHTML = '🟢 <b>Soporte en línea</b>'; }
+      } else {
+        if (el) { el.style.display = 'block'; el.innerHTML = '🔴 <b>Soporte desconectado</b> (Podes dejar tu mensaje)'; }
+      }
+    }
+  }
+
+  function renderUsersList() {
+    const list = document.getElementById('chatUsersList');
+    if (!list) return;
+
+    if (chatAllUsers.length === 0) {
+      list.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8; font-size:0.85rem;">Cargando usuarios...</div>';
+      return;
+    }
+    
+    let html = '';
+    
+    // Ordenar los usuarios: Primero los online, luego alfabéticamente
+    const sorted = [...chatAllUsers].sort((a, b) => {
+      const aOn = chatOnlineDict[a.id] ? 1 : 0;
+      const bOn = chatOnlineDict[b.id] ? 1 : 0;
+      if (aOn !== bOn) return bOn - aOn;
+      const nameA = a.usuario || a.nombre;
+      const nameB = b.usuario || b.nombre;
+      return nameA.localeCompare(nameB);
+    });
+
+    sorted.forEach(u => {
+      const isOnline = !!chatOnlineDict[u.id];
+      const dot = isOnline ? '<span style="color:#10b981; font-size:0.8rem;">🟢</span>' : '<span style="color:#ef4444; font-size:0.8rem;">🔴</span>';
+      const displayName = u.usuario || u.nombre;
+      
+      html += `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer; min-height:40px;"
+             onmouseover="this.style.background='rgba(255,255,255,0.05)'"
+             onmouseout="this.style.background='transparent'"
+             onclick="initPrivateChat('${u.id}', '${displayName}')">
+          <div style="color:#e2e8f0; font-size:0.85rem; display:flex; align-items:center; gap:8px;">
+            ${dot} ${displayName}
+          </div>
+          <button style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); color:#93c5fd; border-radius:6px; padding:4px 8px; font-size:0.7rem; cursor:pointer;">Chat</button>
+        </div>
+      `;
+    });
+    
+    list.innerHTML = html;
+  }
+
+  function procesarNuevosMensajes(msgs) {
+    if (!msgs || msgs.length === 0) return;
+    const body = document.getElementById('chatBody');
+    let hasNew = false;
+    
+    msgs.forEach(m => {
+      // Evitar duplicados por id
+      if (m.id > chatLastMsgId) {
+        chatLastMsgId = m.id;
+        hasNew = true;
+        renderMensaje(m);
+      }
+    });
+
+    if (hasNew) {
+      if (!chatIsOpen) {
+        chatUnreadCount++;
+        actualizarBadge();
+      }
+      body.scrollTop = body.scrollHeight; 
+    }
+  }
+
+  function renderMensaje(m) {
+    const body = document.getElementById('chatMessages');
+    const localUid = (typeof cdUid !== 'undefined' && cdUid) ? cdUid : localStorage.getItem('cd_uid');
+    
+    const esMio = (String(m.uid) === String(localUid));
+    
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + (esMio ? 'chat-msg-mine' : 'chat-msg-other');
+    
+    let html = '';
+    // Mostrar nombre siempre (Sea mio o tuyo) para que el Supervisor y Usuario vean el registro con nombre completo.
+    let colName = esMio ? 'rgba(255,255,255,0.9)' : (m.rol === 'usuario' ? '#94a3b8' : '#fbbf24');
+    let displayNombre = (esMio ? 'Tú ('+m.nombre+')' : m.nombre);
+    
+    html += '<div class="chat-msg-sender" style="color:'+colName+';">' + displayNombre + (m.rol !== 'usuario' ? ' ⭐' : '') + '</div>';
+    
+    html += '<div>' + escapeHTML(m.text) + '</div>';
+    
+    // time format DD/MM HH:MM
+    const d = new Date(m.ts);
+    const day = d.getDate().toString().padStart(2,'0');
+    const month = (d.getMonth()+1).toString().padStart(2,'0');
+    const hs = d.getHours().toString().padStart(2,'0');
+    const mins = d.getMinutes().toString().padStart(2,'0');
+    const timeStr = day + '/' + month + ' ' + hs + ':' + mins;
+    
+    html += '<div style="font-size:0.6rem; opacity:0.6; text-align:right; margin-top:4px;">' + timeStr + '</div>';
+    
+    div.innerHTML = html;
+    body.appendChild(div);
+  }
+
+  function escapeHTML(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function sendChatMsg(e) {
+    e.preventDefault();
+    const input = document.getElementById('chatInput');
+    const txt = input.value.trim();
+    if(!txt) return;
+    input.value = '';
+    
+    input.disabled = true;
+    
+    let localUid = (typeof cdUid !== 'undefined' && cdUid) ? cdUid : localStorage.getItem('cd_uid');
+    let localRol = (typeof cdRol !== 'undefined' && cdRol) ? cdRol : localStorage.getItem('cd_rol') || 'usuario';
+    let localNombre = (typeof cdNombre !== 'undefined' && cdNombre) ? cdNombre : localStorage.getItem('cd_nombre') || 'Usuario';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        input.disabled = false;
+        input.focus();
+        clearTimeout(chatSyncTimer);
+        syncChatLoop();
+      })
+      .withFailureHandler(e => {
+        input.disabled = false;
+      })
+      .chatSendMsgCD(localUid, localRol, localNombre, txt, chatGhostMode, chatTargetUid);
+  }
+
+  // Iniciar cuando el documento esté listo
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      let localRol = (typeof cdRol !== 'undefined' && cdRol) ? cdRol : localStorage.getItem('cd_rol') || 'usuario';
+      let localUid = (typeof cdUid !== 'undefined' && cdUid) ? cdUid : localStorage.getItem('cd_uid');
+      
+      // Ocultar pill en portal usuario si se desea
+      if (localRol === 'usuario') {
+        const pill = document.getElementById('chatPillContainer');
+        if (pill) pill.style.display = 'none';
+        chatGhostMode = false; // Los usuarios siempre son visibles por defecto
+        
+        // Poner la ventana directo en chat mode
+        document.getElementById('chatTitleSpan').innerText = '💬 Soporte';
+        document.getElementById('chatMessages').style.display = 'flex';
+        document.getElementById('chatFooter').style.display = 'flex';
+      }
+
+      // Mostrar panel GhostMode y userslist solo si es admin/sup
+      if (localRol !== 'usuario') {
+        const ghPanel = document.getElementById('chatSupervisorMode');
+        if (ghPanel) ghPanel.style.display = 'block';
+        document.getElementById('chatTitleSpan').innerText = '💬 Contactos';
+        document.getElementById('chatUsersList').style.display = 'flex';
+        
+        // Solicitar lista de usuarios
+        google.script.run
+          .withSuccessHandler(res => {
+            if(res.ok) { chatAllUsers = res.data; renderUsersList(); }
+          })
+          .listarUsuariosCD(localRol);
+      }
+
+      if(localUid) syncChatLoop();
+    }, 10000); 
+  });
+</script>

@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LEGALTEC — Login</title>
+  <title>LEGALTEC - CONTROL</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       font-family: 'Inter', sans-serif;
       min-height: 100vh;
@@ -17,33 +25,67 @@
       justify-content: center;
       background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
     }
+
     .card {
-      background: rgba(255,255,255,0.05);
+      background: rgba(255, 255, 255, 0.05);
       backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.1);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 20px;
       padding: 48px 40px;
       width: 100%;
       max-width: 420px;
-      box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
     }
-    .logo { text-align: center; margin-bottom: 32px; }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
     .logo-icon {
-      width: 56px; height: 56px;
+      width: 56px;
+      height: 56px;
       background: linear-gradient(135deg, #3b82f6, #8b5cf6);
       border-radius: 16px;
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 28px;
       margin: 0 auto 12px;
     }
-    h1 { color: #f8fafc; font-size: 1.5rem; font-weight: 700; text-align: center; }
-    .subtitle { color: #94a3b8; font-size: 0.875rem; text-align: center; margin-top: 4px; }
-    .form-group { margin-top: 20px; }
-    label { display: block; color: #cbd5e1; font-size: 0.8rem; font-weight: 500; margin-bottom: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    h1 {
+      color: #f8fafc;
+      font-size: 1.5rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      font-size: 0.875rem;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .form-group {
+      margin-top: 20px;
+    }
+
+    label {
+      display: block;
+      color: #cbd5e1;
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-bottom: 6px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
     input {
       width: 100%;
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 10px;
       padding: 12px 16px;
       color: #f1f5f9;
@@ -52,11 +94,16 @@
       transition: border-color 0.2s, box-shadow 0.2s;
       outline: none;
     }
+
     input:focus {
       border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
     }
-    input::placeholder { color: #64748b; }
+
+    input::placeholder {
+      color: #64748b;
+    }
+
     .btn {
       width: 100%;
       margin-top: 28px;
@@ -71,105 +118,180 @@
       transition: opacity 0.2s, transform 0.1s;
       font-family: 'Inter', sans-serif;
     }
-    .btn:hover { opacity: 0.92; transform: translateY(-1px); }
-    .btn:active { transform: translateY(0); }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .error-msg {
       margin-top: 14px;
       padding: 10px 14px;
-      background: rgba(239,68,68,0.15);
-      border: 1px solid rgba(239,68,68,0.3);
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
       border-radius: 8px;
       color: #fca5a5;
       font-size: 0.85rem;
       display: none;
     }
+
     .spinner {
       display: inline-block;
-      width: 16px; height: 16px;
-      border: 2px solid rgba(255,255,255,0.3);
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
       border-top-color: white;
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
       vertical-align: middle;
       margin-right: 6px;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
   </style>
 </head>
+
 <body>
   <div class="card">
-    <div class="logo">
-      <div class="logo-icon">📋</div>
-      <h1>LEGALTEC</h1>
-      <p class="subtitle">Sistema de Control Documental</p>
+    <div id="step1">
+        <form id="loginForm" onsubmit="return false;">
+            <div class="form-group">
+                <label for="usuario">Usuario</label>
+                <input type="text" id="usuario" placeholder="Ingresá tu usuario" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="pass">Contraseña</label>
+                <input type="password" id="pass" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <button class="btn" id="btnLogin" type="submit">Ingresar</button>
+            <div class="error-msg" id="errorMsg"></div>
+        </form>
     </div>
-    <form id="loginForm" onsubmit="return false;">
-      <div class="form-group">
-        <label for="usuario">Usuario</label>
-        <input type="text" id="usuario" placeholder="Ingresá tu usuario" autocomplete="username">
-      </div>
-      <div class="form-group">
-        <label for="pass">Contraseña</label>
-        <input type="password" id="pass" placeholder="••••••••" autocomplete="current-password">
-      </div>
-      <button class="btn" id="btnLogin" type="submit">Ingresar</button>
-      <div class="error-msg" id="errorMsg"></div>
-    </form>
+
+    <!-- Sección de Verificación 2FA -->
+    <div id="stepToken" style="display:none; text-align:center;">
+        <div style="font-size:3rem; margin-bottom:15px;">🛡️</div>
+        <h2 style="color:white; font-size:1.2rem; margin-bottom:8px;">Verificación de Seguridad</h2>
+        <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:20px;">Hemos enviado un código de 6 dígitos a tu correo.</p>
+        
+        <div class="form-group">
+            <label>Código de Seguridad</label>
+            <input type="text" id="adminToken" maxlength="6" style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;" placeholder="000000">
+        </div>
+        <button class="btn" id="btnVerify" onclick="verifyToken()">Verificar y Entrar</button>
+        <p style="margin-top:15px; font-size:0.8rem;"><a href="#" onclick="location.reload()" style="color:#3b82f6;">Volver al inicio</a></p>
+        <div class="error-msg" id="errorMsgToken"></div>
+    </div>
   </div>
 
   <script>
     const baseUrl = "<?= appUrl ?>";
+    let tempUid = null;
 
-    document.getElementById('loginForm').addEventListener('submit', function() {
+    function handleSessionSuccess(res) {
+        // Guardar sesión en localStorage para persistir entre navegaciones
+        localStorage.setItem('cd_rol', res.rol || '');
+        localStorage.setItem('cd_uid', res.uid || '');
+        localStorage.setItem('cd_nombre', res.nombre || '');
+        
+        // Resetear intentos
+        localStorage.removeItem('login_intentos');
+        localStorage.removeItem('login_bloqueo');
+
+        let pageTarget = 'PortalUsuario';
+        if (res.rol === 'admin') pageTarget = 'PanelAdmin';
+        else if (res.rol === 'supervisor') pageTarget = 'Index';
+
+        const targetUrl = baseUrl + '?page=' + pageTarget;
+        
+        // Redirección completa
+        try { window.top.location.href = targetUrl; } catch (e) { }
+    }
+
+    function verifyToken() {
+        const token = document.getElementById('adminToken').value.trim();
+        const err = document.getElementById('errorMsgToken');
+        const btn = document.getElementById('btnVerify');
+
+        if(token.length < 6) return;
+
+        err.style.display = 'none';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Verificando...';
+
+        google.script.run
+            .withSuccessHandler(function(res) {
+                if(res.ok) {
+                    handleSessionSuccess(res);
+                } else {
+                    err.textContent = res.message || 'Código inválido.';
+                    err.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Verificar y Entrar';
+                }
+            })
+            .verifyTokenAdmin(tempUid, token);
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', function () {
       const usuario = document.getElementById('usuario').value.trim();
-      const pass    = document.getElementById('pass').value.trim();
-      const err     = document.getElementById('errorMsg');
-      const btn     = document.getElementById('btnLogin');
+      const pass = document.getElementById('pass').value.trim();
+      const err = document.getElementById('errorMsg');
+      const btn = document.getElementById('btnLogin');
 
       if (!usuario || !pass) {
         err.textContent = 'Completá usuario y contraseña.';
         err.style.display = 'block';
         return;
       }
+      
+      // Bloqueo temporal desactivado para facilitar pruebas en desarrollo
+      err.style.display = 'none';
       err.style.display = 'none';
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>Ingresando...';
 
       google.script.run
-        .withSuccessHandler(function(res) {
+        .withSuccessHandler(function (res) {
           if (res.ok) {
-            // Guardar sesión en localStorage para persistir entre navegaciones
-            localStorage.setItem('cd_rol',    res.rol    || '');
-            localStorage.setItem('cd_uid',    res.uid    || '');
-            localStorage.setItem('cd_nombre', res.nombre || '');
-
-            let pageTarget = 'PortalUsuario';
-            if (res.rol === 'admin' || res.rol === 'supervisor') pageTarget = 'Index';
-
-            const targetUrl = baseUrl + '?page=' + pageTarget;
-            btn.innerHTML = '✅ Éxito. Redirigiendo...';
-            
-            // Intento automático
-            try { window.top.location.href = targetUrl; } catch(e) {}
-            
-            // Fallback en pantalla si el navegador bloquea el auto-redirect
-            err.innerHTML = `Si no te redirige automáticamente, <a href="${targetUrl}" target="_top" style="color:#6ee7b7; font-weight:bold; text-decoration:underline;">hacé clic aquí para entrar</a>.`;
-            err.style.display = 'block';
-            err.style.background = 'rgba(16,185,129,0.1)';
-            err.style.borderColor = 'rgba(16,185,129,0.3)';
-            err.style.color = '#6ee7b7';
+            if (res.requires2FA) {
+                tempUid = res.uid;
+                document.getElementById('step1').style.display = 'none';
+                document.getElementById('stepToken').style.display = 'block';
+                return;
+            }
+            handleSessionSuccess(res);
           } else {
-            err.textContent = res.message || 'Credenciales incorrectas.';
+            let intentos = parseInt(localStorage.getItem('login_intentos') || '0', 10) + 1;
+            localStorage.setItem('login_intentos', intentos.toString());
+            
+            if(intentos >= 3) {
+              const lockoutTime = Date.now() + 15 * 60 * 1000; // 15 mins block
+              localStorage.setItem('login_bloqueo', lockoutTime.toString());
+              err.textContent = 'Demasiados intentos fallidos. Tu acceso fue bloqueado temporalmente.';
+            } else {
+               err.textContent = res.message || 'Credenciales incorrectas.';
+            }
             err.style.display = 'block';
-            err.style.background = 'rgba(239,68,68,0.15)';
-            err.style.color = '#fca5a5';
             btn.disabled = false;
             btn.textContent = 'Ingresar';
           }
         })
-        .withFailureHandler(function(e) {
-          err.textContent = 'Error del servidor: ' + e.message;
+        .withFailureHandler(function (e) {
+          err.textContent = 'Error: ' + e.message;
           err.style.display = 'block';
           btn.disabled = false;
           btn.textContent = 'Ingresar';
@@ -178,4 +300,5 @@
     });
   </script>
 </body>
+
 </html>

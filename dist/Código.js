@@ -11,34 +11,32 @@ function getSS() {
         __ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     return __ss;
 }
-function getMainSheet() { return getSS().getSheetByName("Registros"); }
+function getMainSheet() { return getSS().getSheetByName("REGISTROS"); }
 function getBajaResSheet() { return getSS().getSheetByName("BAJA RES"); }
 function getControlSheet() { return getSS().getSheetByName("Control"); }
 let CONFIG_CACHE = null; // Cache para la configuración de autoridades
 // normalizeHeader se encuentra ahora en utils.ts
 // parseSafeDate se encuentra ahora en utils.ts
 /**
- * Lee la hoja "aux" y devuelve mapeo de autoridad -> {senadora, secretaria, correo}
+ * Lee la hoja "AUTORIDADES" y devuelve mapeo de autoridad -> {senadora, secretaria, correo}
  * Lee el rango A1:D44 (encabezados en fila 1, datos en filas 2-44)
  * Columnas esperadas: A=Senador/a (apellido), B=Senador/a (nombre+apellido), C=Secretario/a, D=Correo
  */
 function loadAutoridadesConfig() {
+    if (CONFIG_CACHE)
+        return CONFIG_CACHE;
     try {
-        const auxSheet = getSS().getSheetByName("aux");
-        if (!auxSheet) {
-            Logger.log("Aviso: Hoja 'aux' no encontrada. Usando configuración vacía.");
+        const data = firestoreGetAllDocs("Autoridades");
+        if (!data || data.length === 0) {
+            Logger.log("Aviso: Colección 'Autoridades' no encontrada en Firebase.");
             return {};
         }
-        const range = auxSheet.getRange("A1:D44");
-        const values = range.getValues();
         const config = {};
-        // Saltamos la fila 1 (header - fila índice 0)
-        for (let i = 1; i < values.length; i++) {
-            const row = values[i];
-            const apellido = String(row[0] || '').trim().toUpperCase();
-            const nombreCompleto = String(row[1] || '').trim();
-            const secretario = String(row[2] || '').trim();
-            const correo = String(row[3] || '').trim();
+        for (const row of data) {
+            const apellido = String(row['APELLIDO'] || row['AUTORIDAD'] || '').trim().toUpperCase();
+            const nombreCompleto = String(row['NOMBRE COMPLETO'] || '').trim();
+            const secretario = String(row['SECRETARIO'] || '').trim();
+            const correo = String(row['CORREO'] || '').trim();
             if (apellido && secretario && correo) {
                 config[apellido] = {
                     apellido: apellido,
@@ -48,11 +46,12 @@ function loadAutoridadesConfig() {
                 };
             }
         }
-        Logger.log("Config cargada: " + Object.keys(config).length + " autoridades encontradas");
+        Logger.log("Config cargada desde Firebase: " + Object.keys(config).length + " autoridades encontradas");
+        CONFIG_CACHE = config;
         return config;
     }
     catch (e) {
-        Logger.log("Error cargando config de autoridades: " + e.message);
+        Logger.log("Error cargando config de autoridades desde Firebase: " + e.message);
         return {};
     }
 }
@@ -71,183 +70,103 @@ function getSecretarioYCorreo(autoridad) {
 function getAutoridadesList(ts) {
     return loadAutoridadesConfig();
 }
-/**
- * Agrega una nueva autoridad a la hoja aux
- */
 function addAutoridadConfig(apellido, nombreCompleto, secretario, correo) {
     try {
-        const apellidoLower = String(apellido || '').trim().toUpperCase();
-        if (!apellidoLower || !secretario || !correo) {
+        const apellidoUpper = String(apellido || '').trim().toUpperCase();
+        if (!apellidoUpper || !secretario || !correo) {
             return { success: false, message: "Faltan datos requeridos: Apellido, Secretario y Correo son obligatorios." };
-        }
-        const auxSheet = getSS().getSheetByName("aux");
-        if (!auxSheet) {
-            return { success: false, message: "Hoja 'aux' no encontrada." };
         }
         // Verificar que no exista ya
         const config = loadAutoridadesConfig();
-        if (config[apellidoLower]) {
-            return { success: false, message: "La autoridad '" + apellidoLower + "' ya existe." };
+        if (config[apellidoUpper]) {
+            return { success: false, message: "La autoridad '" + apellidoUpper + "' ya existe." };
         }
-        // Encontrar la primera fila vacía en el rango A2:D44
-        const range = auxSheet.getRange("A2:D44");
-        const values = range.getValues();
-        let insertRow = -1;
-        for (let i = 0; i < values.length; i++) {
-            if (!values[i][0] || String(values[i][0]).trim() === '') {
-                insertRow = i + 2; // +2 porque range empieza en fila 2 (i=0 es fila 2)
-                break;
-            }
-        }
-        if (insertRow === -1) {
-            return { success: false, message: "No hay espacio disponible en la hoja aux (máximo 43 autoridades)." };
-        }
-        auxSheet.getRange(insertRow, 1).setValue(apellidoLower); // Columna A
-        auxSheet.getRange(insertRow, 2).setValue(nombreCompleto); // Columna B
-        auxSheet.getRange(insertRow, 3).setValue(secretario); // Columna C
-        auxSheet.getRange(insertRow, 4).setValue(correo); // Columna D
-        SpreadsheetApp.flush(); // Forzar la escritura
-        // Limpiar cache para recargar
+        const docId = apellidoUpper;
+        const data = {
+            'APELLIDO': apellidoUpper,
+            'NOMBRE COMPLETO': nombreCompleto.trim(),
+            'SECRETARIO': secretario.trim(),
+            'CORREO': correo.trim(),
+            'ID_AUT': docId
+        };
+        firestoreUpdateDocument("Autoridades", docId, data);
         CONFIG_CACHE = null;
-        Logger.log("Autoridad agregada: " + apellidoLower);
-        return { success: true, message: "Autoridad '" + apellidoLower + "' agregada exitosamente." };
+        return { success: true, message: "Autoridad '" + apellidoUpper + "' agregada en Firebase." };
     }
     catch (e) {
-        Logger.log("Error agregando autoridad: " + e.message);
-        return { success: false, message: "Error: " + e.message };
+        return { success: false, message: "Error (Firebase): " + e.message };
     }
 }
 /**
- * Edita una autoridad existente en la hoja aux
+ * Edita una autoridad existente en la hoja AUTORIDADES
  */
 function updateAutoridadConfig(oldApellido, newApellido, secretario, correo) {
     try {
-        const auxSheet = getSS().getSheetByName("aux");
-        if (!auxSheet) {
-            return { success: false, message: "Hoja 'aux' no encontrada." };
-        }
-        const oldApellidoUpper = String(oldApellido || '').trim().toUpperCase();
-        const newApellidoUpper = String(newApellido || '').trim().toUpperCase();
-        if (!oldApellidoUpper || !newApellidoUpper || !secretario || !correo) {
+        const oldKey = String(oldApellido || '').trim().toUpperCase();
+        const newKey = String(newApellido || '').trim().toUpperCase();
+        if (!oldKey || !newKey || !secretario || !correo) {
             return { success: false, message: "Faltan datos requeridos." };
         }
-        // Buscar la fila con esta autoridad (usando el apellido antiguo)
-        const range = auxSheet.getRange("A1:D44");
-        const values = range.getValues();
-        let foundRow = -1;
-        for (let i = 1; i < values.length; i++) { // i=1 para saltar header
-            if (String(values[i][0] || '').trim().toUpperCase() === oldApellidoUpper) {
-                foundRow = i + 1; // +1 porque range empieza en fila 1
-                break;
-            }
+        // Si cambió el apellido, borramos el viejo y creamos el nuevo
+        if (oldKey !== newKey) {
+            firestoreDeleteDocument("Autoridades", oldKey);
         }
-        // Si la autoridad no está en el sheet (es predefinida), agregarla como custom
-        if (foundRow === -1) {
-            // Buscar primera fila vacía en A2:A44
-            for (let i = 1; i < values.length; i++) {
-                if (!values[i][0] || String(values[i][0]).trim() === '') {
-                    const newRow = i + 1; // fila real del sheet
-                    auxSheet.getRange(newRow, 1).setValue(newApellidoUpper); // A
-                    auxSheet.getRange(newRow, 2).setValue(""); // B (nombreCompleto vacío)
-                    auxSheet.getRange(newRow, 3).setValue(secretario); // C
-                    auxSheet.getRange(newRow, 4).setValue(correo); // D
-                    SpreadsheetApp.flush(); // Forzar la escritura antes de que la UI recargue los valores
-                    CONFIG_CACHE = null;
-                    Logger.log("Autoridad predefinida '" + oldApellidoUpper + "' agregada como custom: " + newApellidoUpper);
-                    return { success: true, message: "Autoridad agregada exitosamente." };
-                }
-            }
-            return { success: false, message: "Límite de autoridades alcanzado (máx. 44)." };
-        }
-        // Si existe en el sheet, actualizarla
-        auxSheet.getRange(foundRow, 1).setValue(newApellidoUpper); // Columna A - Apellido
-        auxSheet.getRange(foundRow, 3).setValue(secretario); // Columna C
-        auxSheet.getRange(foundRow, 4).setValue(correo); // Columna D
-        SpreadsheetApp.flush(); // Forzar la escritura antes de que la UI recargue los valores
-        // Limpiar cache
+        const data = {
+            'APELLIDO': newKey,
+            'NOMBRE COMPLETO': String(newApellido || '').trim(),
+            'SECRETARIO': secretario.trim(),
+            'CORREO': correo.trim(),
+            'ID_AUT': newKey
+        };
+        firestoreUpdateDocument("Autoridades", newKey, data);
         CONFIG_CACHE = null;
-        Logger.log("Autoridad actualizada: " + newApellidoUpper);
-        return { success: true, message: "Autoridad '" + newApellidoUpper + "' actualizada exitosamente." };
+        return { success: true, message: "Autoridad actualizada en Firebase." };
     }
     catch (e) {
-        Logger.log("Error actualizando autoridad: " + e.message);
-        return { success: false, message: "Error: " + e.message };
+        return { success: false, message: "Error al actualizar (Firebase): " + e.message };
     }
 }
 /**
- * Elimina una autoridad de la hoja aux
+ * Elimina una autoridad de la hoja AUTORIDADES
  */
 function deleteAutoridadConfig(apellido) {
     try {
-        const auxSheet = getSS().getSheetByName("aux");
-        if (!auxSheet) {
-            return { success: false, message: "Hoja 'aux' no encontrada." };
-        }
-        const apellidoUpper = String(apellido || '').trim().toUpperCase();
-        if (!apellidoUpper) {
+        const key = String(apellido || '').trim().toUpperCase();
+        if (!key)
             return { success: false, message: "Apellido requerido." };
-        }
-        // Buscar y limpiar la fila
-        const range = auxSheet.getRange("A1:D44");
-        const values = range.getValues();
-        let foundRow = -1;
-        for (let i = 1; i < values.length; i++) {
-            if (String(values[i][0] || '').trim().toUpperCase() === apellidoUpper) {
-                foundRow = i + 1;
-                break;
-            }
-        }
-        if (foundRow === -1) {
-            // Si no existe en sheet, es una autoridad predefinida. Retornar suceso (desaparecerá del SELECT al recargar)
-            Logger.log("Autoridad predefinida '" + apellidoUpper + "' no está en sheet (no se elimina).");
-            return { success: true, message: "Autoridad eliminada (lista refresca automáticamente)." };
-        }
-        // Limpiar las 4 celdas de la fila
-        auxSheet.getRange(foundRow, 1, 1, 4).clearContent();
-        SpreadsheetApp.flush(); // Forzar la escritura
-        // Limpiar cache
+        firestoreDeleteDocument("Autoridades", key);
         CONFIG_CACHE = null;
-        Logger.log("Autoridad eliminada: " + apellidoUpper);
-        return { success: true, message: "Autoridad '" + apellidoUpper + "' eliminada exitosamente." };
+        return { success: true, message: "Autoridad '" + key + "' eliminada de Firebase." };
     }
     catch (e) {
-        Logger.log("Error eliminando autoridad: " + e.message);
-        return { success: false, message: "Error: " + e.message };
+        return { success: false, message: "Error al eliminar: " + e.message };
     }
 }
 /**
- * Lee la hoja "config" y devuelve array de tareas customizadas
- * Lee el rango L1:L100 (tareas adicionales configuradas)
- */
-/**
- * Obtiene lista de tareas desde la hoja "aux" rango F2:F100
+ * Obtiene lista de tareas desde la hoja "AUXILIARES" rango A2:A200
  */
 function getTareasList(ts) {
     try {
-        const auxSheet = getSS().getSheetByName("aux");
-        if (!auxSheet) {
-            Logger.log("Aviso: Hoja 'aux' no encontrada. Devolviendo lista vacía.");
+        const auxiliaries = firestoreGetAllDocs("Auxiliares");
+        if (!auxiliaries || auxiliaries.length === 0) {
+            Logger.log("Aviso: Colección 'Auxiliares' vacía o no encontrada en Firebase.");
             return [];
         }
-        const range = auxSheet.getRange("F2:F100");
-        const values = range.getValues();
-        const tareas = [];
-        for (let i = 0; i < values.length; i++) {
-            const tarea = String(values[i][0] || '').trim();
-            if (tarea) {
-                tareas.push(tarea);
-            }
-        }
-        Logger.log("Tareas cargadas desde aux F2:F100: " + tareas.length);
+        // Se asume que las tareas están en una propiedad llamada 'TAREA' o similar
+        // o simplemente tomamos los valores no vacíos de los documentos
+        const tareas = auxiliaries
+            .map(doc => String(doc['TAREA'] || doc['VALOR'] || '').trim())
+            .filter(t => t !== '');
+        Logger.log("Tareas cargadas desde Firebase (Auxiliares): " + tareas.length);
         return tareas;
     }
     catch (e) {
-        Logger.log("Error obteniendo lista de tareas: " + e.message);
+        Logger.log("Error obteniendo lista de tareas (Firebase): " + e.message);
         return [];
     }
 }
 /**
- * Agrega nueva tarea en la hoja "aux" F2:F100
+ * Agrega nueva tarea en la hoja AUXILIARES
  */
 function addTareaConfig(tarea) {
     try {
@@ -255,24 +174,23 @@ function addTareaConfig(tarea) {
         if (!tareaLimpia) {
             return { success: false, message: "Tarea vacía." };
         }
-        const auxSheet = getSS().getSheetByName("aux");
-        if (!auxSheet) {
-            return { success: false, message: "Hoja 'aux' no encontrada." };
+        const sheet = getSS().getSheetByName("AUXILIARES");
+        if (!sheet) {
+            return { success: false, message: "Hoja 'AUXILIARES' no encontrada." };
         }
-        // Encontrar primera celda vacía en F2:F100
-        const range = auxSheet.getRange("F2:F100");
+        const range = sheet.getRange("A2:A200");
         const values = range.getValues();
-        let firstEmpty = -1;
+        let insertRow = -1;
         for (let i = 0; i < values.length; i++) {
             if (!values[i][0] || String(values[i][0]).trim() === '') {
-                firstEmpty = i + 2; // +2 porque range empieza en F2
+                insertRow = i + 2;
                 break;
             }
         }
-        if (firstEmpty === -1) {
-            return { success: false, message: "Límite de tareas alcanzado (máx. 100)." };
+        if (insertRow === -1) {
+            return { success: false, message: "No hay espacio disponible en la hoja AUXILIARES." };
         }
-        auxSheet.getRange('F' + firstEmpty).setValue(tareaLimpia);
+        sheet.getRange(insertRow, 1).setValue(tareaLimpia);
         SpreadsheetApp.flush();
         Logger.log("Tarea agregada: " + tareaLimpia);
         return { success: true, message: "Tarea '" + tareaLimpia + "' agregada exitosamente." };
@@ -296,7 +214,7 @@ function updateTareaConfig(oldName, newName) {
         if (!auxSheet) {
             return { success: false, message: "Hoja 'aux' no encontrada." };
         }
-        const range = auxSheet.getRange("F2:F100");
+        const range = auxSheet.getRange("E2:E100");
         const values = range.getValues();
         Logger.log("updateTareaConfig: Buscando '" + oldNameLimpia + "' en " + values.length + " filas");
         // Buscar la tarea por nombre (case-insensitive)
@@ -308,7 +226,7 @@ function updateTareaConfig(oldName, newName) {
                 tareasTrovadas.push(cellValue);
             }
             if (cellValue === oldNameLimpia) {
-                foundIdx = i + 2; // +2 porque range empieza en F2
+                foundIdx = i + 2; // +2 porque range empieza en E2
                 Logger.log("updateTareaConfig: ¡Encontrada en fila " + foundIdx + "!");
                 break;
             }
@@ -320,7 +238,7 @@ function updateTareaConfig(oldName, newName) {
             for (let i = 0; i < values.length; i++) {
                 if (!values[i][0] || String(values[i][0]).trim() === '') {
                     const newRow = i + 2;
-                    auxSheet.getRange('F' + newRow).setValue(newNameLimpia);
+                    auxSheet.getRange('E' + newRow).setValue(newNameLimpia);
                     SpreadsheetApp.flush();
                     Logger.log("Tarea '" + oldNameLimpia + "' agregada como nueva en fila " + newRow + ": " + newNameLimpia);
                     return { success: true, message: "Tarea agregada exitosamente." };
@@ -329,7 +247,7 @@ function updateTareaConfig(oldName, newName) {
             return { success: false, message: "Límite de tareas alcanzado (máx. 100)." };
         }
         // Si existe, actualizarla
-        auxSheet.getRange('F' + foundIdx).setValue(newNameLimpia);
+        auxSheet.getRange('E' + foundIdx).setValue(newNameLimpia);
         SpreadsheetApp.flush();
         Logger.log("Tarea actualizada en fila " + foundIdx + ": " + oldNameLimpia + " -> " + newNameLimpia);
         return { success: true, message: "Tarea actualizada exitosamente." };
@@ -349,14 +267,14 @@ function deleteTareaConfig(tareaName) {
         if (!auxSheet) {
             return { success: false, message: "Hoja 'aux' no encontrada." };
         }
-        const range = auxSheet.getRange("F2:F100");
+        const range = auxSheet.getRange("E2:E100");
         const values = range.getValues();
         // Buscar la tarea (case-insensitive)
         let foundIdx = -1;
         for (let i = 0; i < values.length; i++) {
             const cellValue = String(values[i][0] || '').trim().toUpperCase();
             if (cellValue === tareaNameLimpia) {
-                foundIdx = i + 2; // +2 porque range empieza en F2
+                foundIdx = i + 2; // +2 porque range empieza en E2
                 break;
             }
         }
@@ -364,7 +282,7 @@ function deleteTareaConfig(tareaName) {
             Logger.log("Tarea '" + tareaNameLimpia + "' no encontrada en aux.");
             return { success: true, message: "Tarea eliminada (lista refresca automáticamente)." };
         }
-        auxSheet.getRange('F' + foundIdx).clearContent();
+        auxSheet.getRange('E' + foundIdx).clearContent();
         SpreadsheetApp.flush();
         Logger.log("Tarea eliminada: " + tareaNameLimpia);
         return { success: true, message: "Tarea eliminada exitosamente." };
@@ -420,7 +338,23 @@ function canManageAutoridadesByCurrentUser() {
  * Obtiene el rol del usuario actual (para enviar al frontend)
  */
 function getUserRoleForFrontend() {
-    return { role: getCurrentUserRole() };
+    const props = PropertiesService.getUserProperties();
+    const userName = props.getProperty('CD_NOMBRE') || '';
+    const userStats = { role: null, autor: null };
+    if (userName) {
+        try {
+            const todosUsuarios = firestoreGetAllDocs("Usuarios");
+            const user = todosUsuarios.find(u => String(u['NOMBRE'] || '').trim().toUpperCase() === userName.toUpperCase());
+            if (user) {
+                userStats.role = String(user['ROL'] || '').trim().toUpperCase();
+                userStats.autor = String(user['AUTOR_COD'] || '').trim().toUpperCase();
+            }
+        }
+        catch (e) {
+            userStats.role = getCurrentUserRole();
+        }
+    }
+    return userStats;
 }
 /**
  * Registra el acceso al panel de Control Docus.
@@ -437,7 +371,7 @@ function doGet(e) {
         const t = HtmlService.createTemplateFromFile('LoginCD');
         t.appUrl = appUrl;
         return t.evaluate()
-            .setTitle('Control Docus — Login')
+            .setTitle('LEGALTEC - CONTROL')
             .addMetaTag('viewport', 'width=device-width, initial-scale=1')
             .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     }
@@ -446,7 +380,7 @@ function doGet(e) {
         const t = HtmlService.createTemplateFromFile('LoginCD');
         t.appUrl = appUrl;
         return t.evaluate()
-            .setTitle('Control Docus — Login')
+            .setTitle('LEGALTEC - CONTROL')
             .addMetaTag('viewport', 'width=device-width, initial-scale=1')
             .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     }
@@ -454,7 +388,7 @@ function doGet(e) {
         const t = HtmlService.createTemplateFromFile('PortalUsuario');
         t.appUrl = appUrl;
         return t.evaluate()
-            .setTitle('Control Docus — Mi Portal')
+            .setTitle('LEGALTEC - CONTROL')
             .addMetaTag('viewport', 'width=device-width, initial-scale=1')
             .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     }
@@ -462,15 +396,15 @@ function doGet(e) {
         const t = HtmlService.createTemplateFromFile('PanelSupervisor');
         t.appUrl = appUrl;
         return t.evaluate()
-            .setTitle('Control Docus — Supervisor')
+            .setTitle('LEGALTEC - CONTROL')
             .addMetaTag('viewport', 'width=device-width, initial-scale=1')
             .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     }
-    // ── Páginas existentes ────────────────────────────────────────────────────
-    if (page === 'Notifications') {
-        return HtmlService.createTemplateFromFile('Notifications')
-            .evaluate()
-            .setTitle('Gestión de Notificaciones')
+    if (page === 'PanelAdmin') {
+        const t = HtmlService.createTemplateFromFile('PanelAdmin');
+        t.appUrl = appUrl;
+        return t.evaluate()
+            .setTitle('LEGALTEC - ADMIN HUB')
             .addMetaTag('viewport', 'width=device-width, initial-scale=1')
             .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     }
@@ -478,13 +412,13 @@ function doGet(e) {
         const t = HtmlService.createTemplateFromFile('Index');
         t.appUrl = appUrl;
         return t.evaluate()
-            .setTitle('PLANILLA GENERAL')
+            .setTitle('LEGALTEC - CONTROL')
             .addMetaTag('viewport', 'width=device-width, initial-scale=1');
     }
     // Fallback al login para cualquier otra ruta no reconocida o protegida
     const t = HtmlService.createTemplateFromFile('LoginCD');
     t.appUrl = appUrl;
-    return t.evaluate().setTitle('Control Docus — Login');
+    return t.evaluate().setTitle('LEGALTEC - CONTROL');
 }
 function include(filename) {
     // Función auxiliar para incluir archivos CSS o JS en la plantilla HTML.
@@ -492,111 +426,89 @@ function include(filename) {
     return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 /**
- * Devuelve la URL para la página de notificaciones.
- */
-function getNotificationsPageUrl() {
-    const url = ScriptApp.getService().getUrl();
-    return `${url}?page=Notifications`;
-}
-/**
- * Devuelve la URL para la página principal.
- */
-function getMainPageUrl() {
-    return ScriptApp.getService().getUrl();
-}
-/**
- * Obtiene todos los datos de las notificaciones de la hoja de cálculo
- * para la vista de Notificaciones.
- * @return {Object} Un objeto con 'headers' y 'data'.
- */
-function getNotificationsData() {
-    const sheet = getMainSheet(); // Usar la hoja designada para notificaciones
-    if (!sheet) {
-        Logger.log("Hoja de notificaciones no encontrada: Hoja 1");
-        return { headers: [], data: [] };
-    }
-    const range = sheet.getDataRange();
-    const allValues = range.getValues();
-    if (allValues.length === 0) {
-        return { headers: [], data: [] };
-    }
-    const allHeaders = allValues[0].map(header => String(header).trim());
-    const rawData = allValues.slice(1);
-    // Definir los encabezados que queremos mostrar en la tabla de notificaciones
-    // e en qué orden. Asegúrate de que estos nombres coincidan con los de tu hoja.
-    const visibleNotificationHeaders = [
-        'Id', 'Título', 'Mensaje', 'Fecha', 'Estado', 'Correo Secretario', 'Acción Notificar'
-    ];
-    const notificationsData = rawData.map((row, rowIndex) => {
-        const rowObject = {};
-        allHeaders.forEach((header, colIndex) => {
-            rowObject[header] = row[colIndex];
-        });
-        // Mapear los datos de la fila a las columnas deseadas para la vista de notificaciones
-        const notificationRow = [];
-        notificationRow.push(rowObject['Id'] || ''); // Asumiendo 'Id' es una columna
-        notificationRow.push(rowObject['REQ'] || ''); // Usamos REQ como 'Título' de la notificación
-        notificationRow.push(rowObject['TAREAS'] || ''); // Usamos TAREAS como 'Mensaje' de la notificación
-        notificationRow.push(rowObject['FECHA ALTA'] || ''); // Usamos FECHA ALTA como 'Fecha'
-        notificationRow.push(rowObject['ESTADO'] || ''); // Usamos ESTADO como 'Estado'
-        notificationRow.push(rowObject['CORREO SECRETARIO'] || ''); // Correo del secretario
-        notificationRow.push(''); // Espacio para el botón de acción
-        return notificationRow;
-    });
-    return { headers: visibleNotificationHeaders, data: notificationsData };
-}
-/**
  * Lee la hoja 'aux' y devuelve un mapa de AUTORIDAD → { secretario, correoSecretario }.
  * Columnas: B=AUTORIDAD, C=SECRETARIO, D=CORREO SECRETARIO (filas 2 a 43).
  */
 function getAuxData() {
-    const cacheKey = "AUX_DATA_MAP_" + SPREADSHEET_ID;
+    const cacheKey = "AUX_DATA_MAP_V3_" + SPREADSHEET_ID;
     const cached = getCache(cacheKey);
     if (cached)
-        return { success: true, data: cached };
+        return { success: true, data: cached.auxMap, autores: cached.autores };
     try {
-        const auxSheet = getSS().getSheetByName('aux');
-        if (!auxSheet) {
-            Logger.log("Hoja 'aux' no encontrada.");
-            return { success: false, message: "Hoja 'aux' no encontrada.", data: {} };
-        }
-        const lastRow = auxSheet.getLastRow();
-        if (lastRow < 2)
-            return { success: true, data: {} };
-        // Leer A2:D (columnas A, B, C, D — índices 0, 1, 2, 3 base-0)
-        const range = auxSheet.getRange(2, 1, lastRow - 1, 4).getValues();
+        // Firebase-First: Consumimos de la colección Autoridades en lugar del Sheet
+        const autoresFirebase = firestoreGetAllDocs("Autoridades") || [];
         const auxMap = {};
-        range.forEach(row => {
-            const autoridad = String(row[0] || '').trim();
-            const secretario = String(row[2] || '').trim();
-            const correo = String(row[3] || '').trim();
+        autoresFirebase.forEach(doc => {
+            // Buscamos las claves de forma robusta mediante normalización
+            let autoridad = "", secretario = "", correo = "";
+            for (let key in doc) {
+                const normKey = normalizeHeader(key);
+                // Buscamos coincidencias flexibles para evitar fallos por barras o minúsculas
+                if (normKey.indexOf("APELLIDO SENADOR") !== -1)
+                    autoridad = String(doc[key] || '').trim().toUpperCase();
+                if (normKey.indexOf("SECRETARIO") !== -1 && normKey.indexOf("CORREO") === -1)
+                    secretario = String(doc[key] || '').trim();
+                if (normKey.indexOf("CORREO") !== -1)
+                    correo = String(doc[key] || '').trim();
+            }
             if (autoridad) {
-                auxMap[autoridad] = { secretario, correoSecretario: correo };
+                auxMap[autoridad] = { secretario, correo: correo };
             }
         });
-        setCache(cacheKey, auxMap, 1800); // Cache por 30 minutos
-        return { success: true, data: auxMap };
+        // Obtener lista de autores desde Firebase
+        const todosUsuarios = firestoreGetAllDocs("Usuarios");
+        const listaAutores = Array.from(new Set(todosUsuarios.map(u => String(u['AUTOR_COD'] || '').trim().toUpperCase()).filter(a => a !== ''))).sort();
+        const finalResult = { auxMap, autores: listaAutores };
+        setCache(cacheKey, finalResult, 600); // 10 min cache
+        return { success: true, data: auxMap, autores: listaAutores };
     }
     catch (e) {
         Logger.log("Error en getAuxData: " + e.message);
-        return { success: false, message: e.message, data: {} };
+        return { success: false, message: e.message, data: {}, autores: [] };
     }
 }
 function getData(filterOptions = { type: 'recent' }) {
     try {
-        checkAndAssignIds(); // Asegurar IDs correlativos para cargas manuales
-        const sheet = getMainSheet();
-        if (!sheet) {
-            console.error("Hoja principal no encontrada: Hoja 1");
-            return { success: false, message: "Hoja de datos 'Hoja 1' no encontrada en el documento." };
+        let allHeaders = [];
+        let rawDataObjects = [];
+        let usingFirebase = false;
+        // INTENTO DE LECTURA DESDE FIREBASE
+        try {
+            const records = firestoreGetAllDocs("Registros");
+            if (records && records.length > 0) {
+                rawDataObjects = records;
+                allHeaders = Object.keys(records[0]).map(normalizeHeader);
+                usingFirebase = true;
+                Logger.log("✅ Datos obtenidos desde Firebase (" + records.length + " registros)");
+            }
         }
-        const range = sheet.getDataRange();
-        const allValues = range.getValues();
-        if (!allValues || allValues.length === 0) {
-            return { success: true, headers: [], data: [] };
+        catch (firebaseErr) {
+            Logger.log("⚠️ Falló lectura de Firebase, reintentando con Sheets: " + firebaseErr.message);
         }
-        const allHeaders = allValues[0].map(normalizeHeader);
-        const rawData = allValues.slice(1);
+        // SI FIREBASE FALLA O ESTÁ VACÍO, USAR SHEETS (Fallback)
+        if (!usingFirebase) {
+            checkAndAssignIds();
+            const sheet = getMainSheet();
+            if (!sheet)
+                return { success: false, message: "Hoja de datos 'Registros' no encontrada." };
+            const range = sheet.getDataRange();
+            const allValues = range.getValues();
+            if (!allValues || allValues.length === 0)
+                return { success: true, headers: [], data: [] };
+            allHeaders = allValues[0].map(normalizeHeader);
+            rawDataObjects = allValues.slice(1); // Aquí rawDataObjects son FILAS (arrays)
+        }
+        else {
+            // Si viene de Firebase, tenemos objetos. Para mantener compatibilidad con el loop inferior,
+            // convertimos los objetos a FILAS (arrays) siguiendo el orden de allHeaders.
+            rawDataObjects = rawDataObjects.map(obj => {
+                return allHeaders.map(h => obj[h] !== undefined ? obj[h] : "");
+            });
+        }
+        // A partir de aquí, rawData siempre es un array de FILAS (arrays)
+        const rawData = rawDataObjects;
+        // Identificar índices para filtrado (Flexible: ALTA o DE ALTA)
+        // ... (El resto de la lógica de filtrado se mantiene igual)
         // Identificar índices para filtrado (Flexible: ALTA o DE ALTA)
         let altaIdx = allHeaders.indexOf('FECHA ALTA');
         if (altaIdx === -1)
@@ -658,12 +570,21 @@ function getData(filterOptions = { type: 'recent' }) {
             filteredAndProcessed.push(rowObject);
         }
         // Encabezados para el cliente
-        const visibleClientHeadersNames = ['ID', 'AUTORIDAD', 'APELLIDOS', 'NOMBRES', 'DNI', 'TAREAS', 'FECHA ALTA', 'TOTAL', 'REQ', 'CHECK', 'ESTADO'];
-        const hiddenClientHeadersNames = ['SECRETARIO', 'CORREO SECRETARIO', 'CORREO LOCADOR', 'SEXO', 'FECHA DE BAJA', 'CUOTA', 'DOMICILIO', 'LOCALIDAD', 'GENERA CONTRATO', 'GENERA RESOLUCION', 'FECHA NOTIFICA', 'BAJA CONTRATO', 'AUTOR'];
-        // Transformación final, sanitización y ordenamiento
+        // Intentar detectar si el ID se llama ID_REG o ID
+        let finalIdHeader = allHeaders.includes('ID_REG') ? 'ID_REG' : 'ID';
+        const visibleClientHeadersNames = [finalIdHeader, 'AUTORIDAD', 'APELLIDOS', 'NOMBRES', 'DNI', 'TAREAS', 'FECHA ALTA', 'TOTAL', 'REQ', 'CHECK', 'ESTADO'];
+        const hiddenClientHeadersNames = ['SECRETARIO', 'CORREO SECRETARIO', 'CORREO LOCADOR', 'SEXO', 'FECHA DE BAJA', 'CUOTA', 'DOMICILIO', 'LOCALIDAD', 'GENERA CONTRATO', 'GENERA RESOLUCION', 'FECHA NOTIFICA', 'BAJA CONTRATO', 'AUTOR', 'CREA REGISTRO'];
+        const config = loadAutoridadesConfig();
+        // Transformación final, sanitización y enriquecimiento
         const finalProcessed = filteredAndProcessed.map(rowObject => {
             if (rowObject['BAJA CONTRATO'] && String(rowObject['BAJA CONTRATO']).trim() !== '') {
                 rowObject['ESTADO'] = 'Baja';
+            }
+            // Enriquecer con metadatos de autoridad (frescura ante todo)
+            const authKey = String(rowObject['AUTORIDAD'] || '').trim().toUpperCase();
+            if (config[authKey]) {
+                rowObject['SECRETARIO'] = config[authKey].secretario;
+                rowObject['CORREO SECRETARIO'] = config[authKey].correo;
             }
             const sanitize = (val) => {
                 if (val === null || val === undefined)
@@ -680,12 +601,18 @@ function getData(filterOptions = { type: 'recent' }) {
             };
             const visible = visibleClientHeadersNames.map(h => sanitize(rowObject[h]));
             const hidden = hiddenClientHeadersNames.map(h => sanitize(rowObject[h]));
-            const recordId = rowObject['ID'];
+            const recordId = rowObject['__id'] || rowObject[finalIdHeader] || rowObject['ID_REG'] || rowObject['ID'];
             const sortDate = parseSafeDate(rowObject['FECHA ALTA']).getTime() || 0;
             return { visible, hidden, recordId, sortDate };
         });
-        // Ordenar por Fecha Alta (Desc) y luego ID (Desc)
-        finalProcessed.sort((a, b) => (b.sortDate - a.sortDate) || (Number(b.recordId) - Number(a.recordId)));
+        // Ordenar por Fecha Alta (Desc) y luego ID (Desc).
+        // Los registros sin FECHA ALTA (sortDate=0, como los renovados recén creados)
+        // se tratan como los más recientes para que aparezcan al principio de la tabla.
+        finalProcessed.sort((a, b) => {
+            const sa = a.sortDate === 0 ? Infinity : a.sortDate;
+            const sb = b.sortDate === 0 ? Infinity : b.sortDate;
+            return (sb - sa) || (Number(b.recordId) - Number(a.recordId));
+        });
         const finalDataArray = finalProcessed.map(item => [...item.visible, '', ...item.hidden, item.recordId]);
         return {
             success: true,
@@ -708,37 +635,20 @@ function getData(filterOptions = { type: 'recent' }) {
  */
 function getLatestDataByIDs(ids) {
     try {
-        const sheet = getMainSheet();
-        if (!sheet)
-            return { success: false, message: "Hoja no encontrada" };
-        const allValues = sheet.getDataRange().getValues();
-        if (allValues.length < 2)
-            return { success: true, data: [] };
-        const allHeaders = allValues[0].map(normalizeHeader);
-        const idIdx = allHeaders.indexOf('ID');
-        if (idIdx === -1)
-            return { success: false, message: "Columna ID no encontrada en el Sheet" };
-        const visibleNames = ['ID', 'AUTORIDAD', 'APELLIDOS', 'NOMBRES', 'DNI', 'TAREAS', 'FECHA ALTA', 'TOTAL', 'REQ', 'CHECK', 'ESTADO'];
-        const hiddenNames = ['SECRETARIO', 'CORREO SECRETARIO', 'CORREO LOCADOR', 'SEXO', 'FECHA BAJA', 'CUOTA', 'DOMICILIO', 'LOCALIDAD', 'GENERA CONTRATO', 'GENERA RESOLUCION', 'FECHA NOTIFICA', 'BAJA CONTRATO', 'AUTOR'];
-        // Convertir IDs buscados a strings para comparación segura
         const idsToFind = (Array.isArray(ids) ? ids : [ids]).map(id => String(id).trim());
-        const matchedRows = allValues.slice(1).filter(row => {
-            const rowId = String(row[idIdx]).trim();
-            return idsToFind.includes(rowId);
-        });
-        const processed = matchedRows.map(row => {
-            const rowObj = {};
-            allHeaders.forEach((h, i) => {
-                if (h) {
-                    rowObj[h] = row[i];
-                    // Alias dinámicos
-                    if (h === 'FECHA DE ALTA')
-                        rowObj['FECHA ALTA'] = row[i];
-                    if (h === 'FECHA DE BAJA')
-                        rowObj['FECHA BAJA'] = row[i];
-                }
-            });
-            // Sanitización igual a getData
+        if (idsToFind.length === 0)
+            return { success: true, data: [] };
+        const records = firestoreGetAllDocs("Registros");
+        const config = loadAutoridadesConfig();
+        const matched = records.filter(r => idsToFind.includes(String(r['ID'] || r['ID_REG'] || r['__id'])));
+        const visibleNames = ['ID', 'AUTORIDAD', 'APELLIDOS', 'NOMBRES', 'DNI', 'TAREAS', 'FECHA ALTA', 'TOTAL', 'REQ', 'CHECK', 'ESTADO'];
+        const hiddenNames = ['SECRETARIO', 'CORREO SECRETARIO', 'CORREO LOCADOR', 'SEXO', 'FECHA BAJA', 'CUOTA', 'DOMICILIO', 'LOCALIDAD', 'GENERA CONTRATO', 'GENERA RESOLUCION', 'FECHA NOTIFICA', 'BAJA CONTRATO', 'AUTOR', 'CREA REGISTRO'];
+        const processed = matched.map(rowObject => {
+            const authKey = String(rowObject['AUTORIDAD'] || '').trim().toUpperCase();
+            if (config[authKey]) {
+                rowObject['SECRETARIO'] = config[authKey].secretario;
+                rowObject['CORREO SECRETARIO'] = config[authKey].correo;
+            }
             const sanitize = (val) => {
                 if (val === null || val === undefined)
                     return '';
@@ -750,10 +660,9 @@ function getLatestDataByIDs(ids) {
                 }
                 return val;
             };
-            const vPart = visibleNames.map(h => sanitize(rowObj[h] !== undefined ? rowObj[h] : ''));
-            const hPart = hiddenNames.map(h => sanitize(rowObj[h] !== undefined ? rowObj[h] : ''));
-            const recordId = String(rowObj['ID'] || '');
-            // Estructura: [visibles..., '', ocultos..., ID]
+            const vPart = visibleNames.map(h => sanitize(rowObject[h] !== undefined ? rowObject[h] : ''));
+            const hPart = hiddenNames.map(h => sanitize(rowObject[h] !== undefined ? rowObject[h] : ''));
+            const recordId = String(rowObject['__id'] || rowObject['ID'] || rowObject['ID_REG'] || '');
             return [...vPart, '', ...hPart, recordId];
         });
         return { success: true, data: processed };
@@ -762,59 +671,70 @@ function getLatestDataByIDs(ids) {
         return { success: false, message: e.toString() };
     }
 }
-function addRow(rowData) {
-    const sheet = getMainSheet();
-    if (!sheet) {
-        return { success: false, message: "Hoja principal no encontrada." };
-    }
+function deleteRow(recordId) {
     try {
-        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-        const idColumnIndex = headers.indexOf('Id'); // Obtener el índice de la columna 'Id'
-        if (idColumnIndex === -1) {
-            return { success: false, message: "Columna 'Id' no encontrada en la hoja." };
-        }
-        let nextId = 1;
-        if (sheet.getLastRow() > 1) { // Si hay más de una fila (es decir, ya hay datos además de los encabezados)
-            const lastId = sheet.getRange(sheet.getLastRow(), idColumnIndex + 1).getValue();
-            if (typeof lastId === 'number') {
-                nextId = lastId + 1;
-            }
-        }
+        const record = firestoreGetDoc("Registros", String(recordId));
+        if (!record)
+            return { success: false, message: "Registro no encontrado en Firebase." };
+        firestoreDeleteDocument("Registros", String(recordId));
+        const label = (record['APELLIDOS'] || 'N/A') + '_' + (record['AUTORIDAD'] || 'N/A');
+        logActivity(`Elimina Registro ${label} (Firebase-First)`);
+        return { success: true, message: "Registro eliminado de Firebase." };
+    }
+    catch (e) {
+        Logger.log("Error en deleteRow (Firebase): " + e.message);
+        return { success: false, message: "Error al eliminar: " + e.message };
+    }
+}
+function addRow(rowData, activeAutor) {
+    try {
+        const records = firestoreGetAllDocs("Registros") || [];
+        // Calcular el siguiente ID
+        let maxId = 0;
+        records.forEach(r => {
+            const idVal = parseInt(r['ID'] || r['ID_REG'] || 0, 10);
+            if (!isNaN(idVal) && idVal > maxId)
+                maxId = idVal;
+        });
+        const nextId = maxId + 1;
         // Limpiar espacios vacíos y formatear DNI y Fechas
         let cleanData = trimData(rowData);
         if (cleanData['DNI']) {
             cleanData['DNI'] = formatearDNI(cleanData['DNI']);
         }
         // Formatear fechas si existen (FECHA ALTA, FECHA BAJA)
-        if (cleanData['FECHA ALTA']) {
-            cleanData['FECHA ALTA'] = fechaEnEspaniol(cleanData['FECHA ALTA']);
-        }
-        if (cleanData['FECHA BAJA']) {
-            cleanData['FECHA BAJA'] = fechaEnEspaniol(cleanData['FECHA BAJA']);
-        }
-        // Asignar el nuevo ID y forzar CHECK=true en toda fila nueva
-        cleanData['Id'] = nextId; // Usar la capitalización exacta 'Id'
-        cleanData['CHECK'] = true; // Al agregar siempre se registra con CHECK tildado
-        const newRowValues = [];
-        headers.forEach(header => {
-            // Usar cleanData[header] para obtener el valor, incluyendo el nuevo Id
-            newRowValues.push(cleanData[header] !== undefined ? cleanData[header] : '');
+        const dateFields = ['FECHA ALTA', 'FECHA BAJA'];
+        dateFields.forEach(f => {
+            if (cleanData[f]) {
+                cleanData[f] = fechaEnEspaniol(cleanData[f]);
+            }
         });
-        sheet.appendRow(newRowValues);
-        // Registrar actividad de ingreso
-        logActivity(`Ingreso ${cleanData['APELLIDOS']}_${cleanData['AUTORIDAD']}`);
-        return { success: true, message: "Registro agregado exitosamente con Id: " + nextId, newId: nextId };
+        // Asignar el nuevo ID en ambos campos para compatibilidad total con la web y Drive
+        cleanData['ID'] = nextId;
+        cleanData['ID_REG'] = nextId;
+        cleanData['CHECK'] = true;
+        // Audit Trail: Creación
+        if (activeAutor) {
+            cleanData['CREA REGISTRO'] = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "d/M/yyyy HH:mm") + '_' + activeAutor;
+        }
+        // Escribimos en Firebase
+        firestoreUpdateDocument("Registros", String(nextId), cleanData);
+        // Registrar actividad de ingreso (usando el autor activo para el log optimizado)
+        logActivity(`Ingreso ${cleanData['APELLIDOS'] || 'N/A'}_${cleanData['AUTORIDAD'] || 'N/A'}`, activeAutor);
+        return { success: true, message: "Registro agregado exitosamente en Firebase con Id: " + nextId, newId: nextId };
     }
     catch (e) {
-        Logger.log("Error al agregar fila: " + e.message);
+        Logger.log("Error al agregar registro (Firebase): " + e.message);
         return { success: false, message: "Error al agregar registro: " + e.message };
     }
 }
-function uploadNotaPdf(base64Data, apellidos, autoridad, recordId) {
+function uploadNotaPdf(base64Data, apellidos, autoridad, recordId, autor = '') {
     try {
-        // Usar el ID del registro proporcionado
+        // Usar el ID del registro proporcionado con formato de 3 dígitos
         const fileNumber = String(recordId).padStart(3, '0');
-        const fileName = `${fileNumber}) AUTORIZA ${apellidos}-${autoridad}.pdf`;
+        // Mismo patrón de nombre que Contratos y Resoluciones: NNN) AUTORIZA APELLIDOS-AUTORIDAD_AUTOR
+        const autorSuffix = autor ? `_${autor}` : '';
+        const fileName = `${fileNumber}) AUTORIZA ${apellidos}-${autoridad}${autorSuffix}.pdf`;
         // Convertir base64 a Blob
         const byteCharacters = Utilities.base64Decode(base64Data);
         const blob = Utilities.newBlob(byteCharacters, 'application/pdf', fileName);
@@ -834,203 +754,83 @@ function uploadNotaPdf(base64Data, apellidos, autoridad, recordId) {
         return { success: false, message: "Error al subir nota PDF: " + e.message };
     }
 }
-function updateRow(rowIndex, rowData) {
-    const sheet = getMainSheet();
-    if (!sheet) {
-        return { success: false, message: "Hoja principal no encontrada." };
-    }
-    const sheetRow = findRowById(sheet, rowIndex);
-    if (sheetRow === -1) {
-        return { success: false, message: "Registro con ID " + rowIndex + " no encontrado para actualizar." };
-    }
+function updateRow(recordId, rowData, activeAutor) {
     try {
-        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-        const updatedValues = [];
+        const record = firestoreGetDoc("Registros", String(recordId));
+        if (!record)
+            return { success: false, message: "Registro no encontrado en Firebase (ID: " + recordId + ")." };
         let cleanData = trimData(rowData);
+        // Formateo de DNI
         if (cleanData['DNI']) {
             cleanData['DNI'] = formatearDNI(cleanData['DNI']);
         }
-        // Formatear fechas si vienen en el update
-        if (cleanData['FECHA ALTA']) {
-            cleanData['FECHA ALTA'] = fechaEnEspaniol(cleanData['FECHA ALTA']);
-        }
-        if (cleanData['FECHA BAJA']) {
-            cleanData['FECHA BAJA'] = fechaEnEspaniol(cleanData['FECHA BAJA']);
-        }
-        headers.forEach((header, index) => {
-            const hNorm = normalizeHeader(header);
-            // Intentar obtener el valor del objeto enviado usando la clave normalizada
-            // cleanData ya viene con claves en MAYUSCULAS del formulario, pero las normalizaremos para seguridad
-            const cleanDataNormalized = {};
-            Object.keys(cleanData).forEach(k => cleanDataNormalized[normalizeHeader(k)] = cleanData[k]);
-            let valToSet = cleanDataNormalized[hNorm];
-            let fieldWasSent = Object.prototype.hasOwnProperty.call(cleanDataNormalized, hNorm);
-            let finalVal;
-            if (fieldWasSent) {
-                finalVal = valToSet;
+        // Formateo de fechas
+        const dateFields = ['FECHA ALTA', 'FECHA BAJA'];
+        dateFields.forEach(f => {
+            if (cleanData[f]) {
+                cleanData[f] = fechaEnEspaniol(cleanData[f]);
             }
-            else {
-                finalVal = sheet.getRange(sheetRow, index + 1).getValue();
-            }
-            if (hNorm === 'DNI' && finalVal) {
-                finalVal = formatearDNI(String(finalVal));
-            }
-            if (typeof finalVal === 'string') {
-                finalVal = finalVal.trim();
-            }
-            updatedValues.push(finalVal);
         });
-        sheet.getRange(sheetRow, 1, 1, updatedValues.length).setValues([updatedValues]);
-        // Verificar si existe BAJA CONTRATO y cambiar el estado automáticamente a "Baja"
-        const normalizedHeaders = headers.map(normalizeHeader);
-        const bajaContratIndex = normalizedHeaders.indexOf('BAJA CONTRATO');
-        const estadoIndex = normalizedHeaders.indexOf('ESTADO');
-        if (bajaContratIndex !== -1 && estadoIndex !== -1) {
-            const bajaContratValue = updatedValues[bajaContratIndex];
-            if (bajaContratValue && String(bajaContratValue).trim() !== '') {
-                sheet.getRange(sheetRow, estadoIndex + 1).setValue('Baja');
-            }
+        // Actualizamos Firebase
+        firestoreUpdateDocument("Registros", String(recordId), cleanData);
+        // Verificación automática de Estado de Baja
+        if (cleanData['BAJA CONTRATO'] && String(cleanData['BAJA CONTRATO']).trim() !== '') {
+            firestoreUpdateDocument("Registros", String(recordId), { "ESTADO": "Baja" });
         }
-        return { success: true, message: `Registro actualizado exitosamente.` };
+        return { success: true, message: "Registro actualizado exitosamente en Firebase." };
     }
     catch (e) {
-        Logger.log("Error al actualizar fila: " + e.message);
+        Logger.log("Error en updateRow (Firebase): " + e.message);
         return { success: false, message: "Error al actualizar registro: " + e.message };
     }
 }
-function deleteRow(rowIndex) {
-    const sheet = getMainSheet();
-    if (!sheet) {
-        return { success: false, message: "Hoja principal no encontrada." };
-    }
-    const sheetRowToDelete = findRowById(sheet, rowIndex);
-    if (sheetRowToDelete === -1) {
-        return { success: false, message: "Registro con ID " + rowIndex + " no encontrado para eliminar." };
-    }
+function updateCheckValue(recordId, value) {
     try {
-        // Obtener datos antes de borrar para el log
-        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
-        const rowValues = sheet.getRange(sheetRowToDelete, 1, 1, sheet.getLastColumn()).getValues()[0];
-        const apellidosIdx = headers.indexOf('APELLIDOS');
-        const autoridadIdx = headers.indexOf('AUTORIDAD');
-        const apellidos = apellidosIdx !== -1 ? rowValues[apellidosIdx] : 'N/A';
-        const autoridad = autoridadIdx !== -1 ? rowValues[autoridadIdx] : 'N/A';
-        sheet.deleteRow(sheetRowToDelete);
-        // Registrar actividad
-        logActivity(`Elimina Registro ${apellidos}_${autoridad}`);
-        const allData = sheet.getDataRange().getValues();
-        if (allData.length > 1) {
-            const idColumnIndex = headers.indexOf('Id');
-            if (idColumnIndex === -1) {
-                Logger.log("Columna 'Id' no encontrada para reajustar después de la eliminación.");
-                return { success: true, message: `Registro en fila ${sheetRowToDelete} eliminado, pero no se pudo reajustar IDs.` };
-            }
-            const dataToUpdate = allData.slice(1);
-            for (let i = 0; i < dataToUpdate.length; i++) {
-                dataToUpdate[i][idColumnIndex] = i + 1;
-            }
-            sheet.getRange(1, 1, allData.length, headers.length).setValues([allData[0], ...dataToUpdate]);
-        }
-        return { success: true, message: `Registro eliminado y IDs reajustados.` };
-    }
-    catch (e) {
-        Logger.log("Error al eliminar fila: " + e.message);
-        return { success: false, message: "Error al eliminar registro: " + e.message };
-    }
-}
-function updateCheckValue(rowIndex, value) {
-    try {
-        const sheet = getMainSheet();
-        if (!sheet)
-            return { success: false, message: 'Hoja no encontrada.' };
-        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(normalizeHeader);
-        const checkColIndex = headers.indexOf('CHECK');
-        if (checkColIndex === -1)
-            return { success: false, message: "Columna 'CHECK' no encontrada." };
-        const sheetRow = findRowById(sheet, rowIndex);
-        if (sheetRow === -1)
-            return { success: false, message: "Registro con ID " + rowIndex + " no encontrado para actualizar CHECK." };
-        sheet.getRange(sheetRow, checkColIndex + 1).setValue(value);
-        SpreadsheetApp.flush();
-        Logger.log('CHECK actualizado: fila=' + sheetRow + ', valor=' + value);
+        firestoreUpdateDocument("Registros", String(recordId), { "CHECK": value });
+        Logger.log('CHECK actualizado en Firebase: ID=' + recordId + ', valor=' + value);
         return { success: true };
     }
     catch (e) {
-        Logger.log('Error en updateCheckValue: ' + e.message);
+        Logger.log('Error en updateCheckValue (Firebase): ' + e.message);
         return { success: false, message: e.message };
     }
 }
-function executeAction(recordId, actionType) {
-    const sheet = getMainSheet();
-    if (!sheet) {
-        Logger.log('Hoja principal no encontrada.');
-        return { success: false, message: 'Hoja no encontrada.' };
-    }
+function executeAction(recordId, actionType, preFetchedRecord, activeAutor) {
     try {
-        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(normalizeHeader);
-        const idIndex = headers.indexOf('ID');
-        if (idIndex === -1) {
-            return { success: false, message: "Columna 'ID' no encontrada en el sheet." };
+        const record = preFetchedRecord || firestoreGetDoc("Registros", String(recordId));
+        if (!record)
+            return { success: false, message: "Registro no encontrado en Firebase (ID: " + recordId + ")." };
+        // Robustez de nombres/apellidos
+        if (!record['APELLIDOS'] || String(record['APELLIDOS']).trim() === '') {
+            const apellidoKey = Object.keys(record).find(k => k.includes('APELLIDO') && String(record[k] || '').trim() !== '');
+            record['APELLIDOS'] = apellidoKey ? String(record[apellidoKey]).trim() : '';
         }
-        const sheetRow = findRowById(sheet, recordId);
-        if (sheetRow === -1) {
-            return { success: false, message: 'Registro con ID ' + recordId + ' no encontrado en el sheet.' };
+        if (!record['NOMBRES'] || String(record['NOMBRES']).trim() === '') {
+            const nombreKey = Object.keys(record).find(k => k.includes('NOMBRE') && String(record[k] || '').trim() !== '');
+            record['NOMBRES'] = nombreKey ? String(record[nombreKey]).trim() : '';
         }
+        // Enriquecer con metadatos de autoridad (frescura)
+        const config = loadAutoridadesConfig();
+        const authKey = String(record['AUTORIDAD'] || '').trim().toUpperCase();
+        if (config[authKey]) {
+            record['SECRETARIO'] = config[authKey].secretario;
+            record['CORREO SECRETARIO'] = config[authKey].correo;
+        }
+        // Bypass del check de finalizado para Notificaciones (el usuario manda)
+        // O si viene pre-fetchado (ya validado por el llamador)
+        const isNotifica = (actionType === 'Notificación');
+        if (!preFetchedRecord && !isNotifica) {
+            const checkRaw = record['CHECK'];
+            const isFinalized = (checkRaw === true || String(checkRaw || '').trim().toUpperCase() === 'TRUE');
+            if (isFinalized) {
+                return { success: false, message: 'La fila ya está marcada como finalizada (CHECK). Destíldala para volver a actuar.' };
+            }
+        }
+        const auxColumns = calculateAuxColumns(record);
+        const fullRowObject = { ...record, ...auxColumns };
         let statusToSet = '';
         let actionMessage = '';
-        const checkboxColumnIndex = headers.indexOf('CHECK') + 1;
-        const estadoColumnIndex = headers.indexOf('ESTADO') + 1;
-        const rowDataRaw = sheet.getRange(sheetRow, 1, 1, sheet.getLastColumn()).getValues()[0];
-        const rowObjectRaw = {};
-        headers.forEach((upperHeader, index) => { rowObjectRaw[upperHeader] = rowDataRaw[index]; });
-        const rowObject = trimData(rowObjectRaw);
-        // DEBUG: Log de claves para troubleshooting
-        Logger.log("=== Datos recuperados del Sheet (fila " + sheetRow + ") ===");
-        Logger.log("Claves en rowObject: " + Object.keys(rowObject).join(" | "));
-        // Robustez: Asegurar que APELLIDOS y NOMBRES existan si el Sheet tiene singular u otras variaciones
-        // Búsqueda flexible: primero exacta, luego por patrón
-        if (!rowObject['APELLIDOS'] || String(rowObject['APELLIDOS']).trim() === '') {
-            // Buscar por patrón: cualquier clave que contenga 'APELLIDO' o 'APELLIDOS'
-            const apellidoKey = Object.keys(rowObject).find(k => k.includes('APELLIDO') &&
-                (String(rowObject[k] || '').trim() !== ''));
-            if (apellidoKey) {
-                Logger.log("APELLIDOS recuperado de: " + apellidoKey + " = '" + String(rowObject[apellidoKey]).trim() + "'");
-                rowObject['APELLIDOS'] = String(rowObject[apellidoKey]).trim();
-            }
-            else {
-                const camposApellido = Object.keys(rowObject).filter(k => k.includes('APELLIDO'));
-                Logger.log("ERROR: No se encontró APELLIDOS en ningún campo. Campos APELLIDO disponibles: " + camposApellido.join(" | "));
-                rowObject['APELLIDOS'] = '';
-            }
-        }
-        else {
-            Logger.log("APELLIDOS encontrado: '" + String(rowObject['APELLIDOS']).trim() + "'");
-            rowObject['APELLIDOS'] = String(rowObject['APELLIDOS']).trim();
-        }
-        if (!rowObject['NOMBRES'] || String(rowObject['NOMBRES']).trim() === '') {
-            // Buscar por patrón: cualquier clave que contenga 'NOMBRE' o 'NOMBRES'
-            const nombreKey = Object.keys(rowObject).find(k => k.includes('NOMBRE') &&
-                (String(rowObject[k] || '').trim() !== ''));
-            if (nombreKey) {
-                Logger.log("NOMBRES recuperado de: " + nombreKey + " = '" + String(rowObject[nombreKey]).trim() + "'");
-                rowObject['NOMBRES'] = String(rowObject[nombreKey]).trim();
-            }
-            else {
-                const camposNombre = Object.keys(rowObject).filter(k => k.includes('NOMBRE'));
-                Logger.log("ERROR: No se encontró NOMBRES en ningún campo. Campos NOMBRE disponibles: " + camposNombre.join(" | "));
-                rowObject['NOMBRES'] = '';
-            }
-        }
-        else {
-            Logger.log("NOMBRES encontrado: '" + String(rowObject['NOMBRES']).trim() + "'");
-            rowObject['NOMBRES'] = String(rowObject['NOMBRES']).trim();
-        }
-        Logger.log("Después de robustez - APELLIDOS: '" + rowObject['APELLIDOS'] + "' | NOMBRES: '" + rowObject['NOMBRES'] + "'");
-        if (rowObject['CHECK'] === true) {
-            return { success: false, message: 'La fila ya está marcada como finalizada. Destíldala para volver a actuar.' };
-        }
-        const auxColumns = calculateAuxColumns(rowObject);
-        const fullRowObject = { ...rowObject, ...auxColumns };
+        const updateData = {};
         switch (actionType) {
             case 'Nota Alta':
                 autoNota_ALTA(fullRowObject);
@@ -1041,13 +841,9 @@ function executeAction(recordId, actionType) {
                 const resContrato = generaContratoWord(fullRowObject);
                 statusToSet = 'Contrato';
                 actionMessage = 'Contrato generado exitosamente (' + resContrato.nombre + ').';
-                // Registrar la fecha de generación del contrato
-                const gcIndex = headers.indexOf('GENERA CONTRATO') + 1;
-                if (gcIndex > 0) {
-                    const now = new Date();
-                    const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy") + '_' + (fullRowObject['AUTOR'] || '');
-                    sheet.getRange(sheetRow, gcIndex).setValue(dateStr);
-                }
+                const now = new Date();
+                const firma = activeAutor || (fullRowObject['AUTOR'] || '');
+                updateData['GENERA CONTRATO'] = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy") + '_' + firma;
                 break;
             }
             case 'Resolución': {
@@ -1057,22 +853,9 @@ function executeAction(recordId, actionType) {
                 const resResolucion = generaResolucionTXT(fullRowObject);
                 statusToSet = 'Resolución';
                 actionMessage = 'Resolución generada exitosamente (' + resResolucion.nombre + ').';
-                // Registrar la fecha de generación de la resolución
-                const grIndex = headers.indexOf('GENERA RESOLUCION') + 1;
-                if (grIndex > 0) {
-                    const now = new Date();
-                    const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy") + '_' + (fullRowObject['AUTOR'] || '');
-                    sheet.getRange(sheetRow, grIndex).setValue(dateStr);
-                }
-                // Registrar la fecha de notificación
-                const fnIndex = headers.indexOf('FECHA NOTIFICA') !== -1 ? headers.indexOf('FECHA NOTIFICA') + 1 :
-                    (headers.indexOf('FECHA NOTIFICACIÓN') !== -1 ? headers.indexOf('FECHA NOTIFICACIÓN') + 1 :
-                        (headers.indexOf('FECHA NOTIFICACION') !== -1 ? headers.indexOf('FECHA NOTIFICACION') + 1 : 0));
-                if (fnIndex > 0) {
-                    const now = new Date();
-                    const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy HH:mm") + '_' + (fullRowObject['AUTOR'] || '');
-                    sheet.getRange(sheetRow, fnIndex).setValue(dateStr);
-                }
+                const now = new Date();
+                const firma = activeAutor || (fullRowObject['AUTOR'] || '');
+                updateData['GENERA RESOLUCION'] = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy") + '_' + firma;
                 break;
             }
             case 'Baja': {
@@ -1083,22 +866,9 @@ function executeAction(recordId, actionType) {
                 if (resBaja.success) {
                     statusToSet = 'Baja';
                     actionMessage = 'Baja de Resolución generada exitosamente (' + resBaja.nombre + ').';
-                    // Registrar la fecha de baja de contrato en la columna correspondiente
-                    const bcIndex = headers.indexOf('BAJA CONTRATO') + 1;
-                    if (bcIndex > 0) {
-                        const now = new Date();
-                        const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy") + '_' + (fullRowObject['AUTOR'] || '');
-                        sheet.getRange(sheetRow, bcIndex).setValue(dateStr);
-                    }
-                    // Registrar la fecha de notificación (FECHA NOTIFICA)
-                    const fnIndex = headers.indexOf('FECHA NOTIFICA') !== -1 ? headers.indexOf('FECHA NOTIFICA') + 1 :
-                        (headers.indexOf('FECHA NOTIFICACIÓN') !== -1 ? headers.indexOf('FECHA NOTIFICACIÓN') + 1 :
-                            (headers.indexOf('FECHA NOTIFICACION') !== -1 ? headers.indexOf('FECHA NOTIFICACION') + 1 : 0));
-                    if (fnIndex > 0) {
-                        const now = new Date();
-                        const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy HH:mm") + '_' + (fullRowObject['AUTOR'] || '');
-                        sheet.getRange(sheetRow, fnIndex).setValue(dateStr);
-                    }
+                    const now = new Date();
+                    const firma = activeAutor || (fullRowObject['AUTOR'] || '');
+                    updateData['BAJA CONTRATO'] = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy") + '_' + firma;
                 }
                 else {
                     return { success: false, message: 'Error en Baja: ' + resBaja.message };
@@ -1110,14 +880,9 @@ function executeAction(recordId, actionType) {
                 if (notificationResult.success) {
                     statusToSet = 'Notificado';
                     actionMessage = notificationResult.message;
-                    const fnIndex = headers.indexOf('FECHA NOTIFICA') !== -1 ? headers.indexOf('FECHA NOTIFICA') + 1 :
-                        (headers.indexOf('FECHA NOTIFICACIÓN') !== -1 ? headers.indexOf('FECHA NOTIFICACIÓN') + 1 :
-                            (headers.indexOf('FECHA NOTIFICACION') !== -1 ? headers.indexOf('FECHA NOTIFICACION') + 1 : 0));
-                    if (fnIndex > 0) {
-                        const now = new Date();
-                        const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy HH:mm") + '_' + (fullRowObject['AUTOR'] || '');
-                        sheet.getRange(sheetRow, fnIndex).setValue(dateStr);
-                    }
+                    const now = new Date();
+                    const firma = activeAutor || (fullRowObject['AUTOR'] || '');
+                    updateData['FECHA NOTIFICA'] = Utilities.formatDate(now, Session.getScriptTimeZone(), "d/M/yyyy HH:mm") + '_' + firma;
                 }
                 else {
                     return { success: false, message: 'Error en notificación: ' + notificationResult.message };
@@ -1127,15 +892,68 @@ function executeAction(recordId, actionType) {
             default:
                 return { success: false, message: 'Acción no reconocida: ' + actionType };
         }
-        if (estadoColumnIndex > 0)
-            sheet.getRange(sheetRow, estadoColumnIndex).setValue(statusToSet);
-        if (checkboxColumnIndex > 0)
-            sheet.getRange(sheetRow, checkboxColumnIndex).setValue(true);
-        return { success: true, message: actionMessage + ' Estado: ' + statusToSet };
+        if (statusToSet)
+            updateData['ESTADO'] = statusToSet;
+        updateData['CHECK'] = true;
+        // Actualizamos Firebase. El synchronization mirror se encargará del Sheet.
+        firestoreUpdateDocument("Registros", String(recordId), updateData);
+        return { success: true, message: actionMessage + ' Estado: ' + (statusToSet || record['ESTADO']) };
     }
     catch (e) {
-        Logger.log('Error en executeAction [' + actionType + '] registro ID ' + recordId + ': ' + e.message + '\n' + e.stack);
+        Logger.log('Error en executeAction (Firestore) [' + actionType + '] registro ID ' + recordId + ': ' + e.message);
         return { success: false, message: 'Error al ejecutar "' + actionType + '": ' + e.message };
+    }
+}
+/**
+ * Versión determinista del proceso por lotes.
+ * Recibe los IDs exactos desde el frontend, sin depender del estado CHECK en Firestore.
+ */
+function executeBulkActionByIDs(ids, actionType, activeAutor) {
+    try {
+        if (!ids || ids.length === 0) {
+            return { success: false, count: 0, errors: [], message: "No se recibieron IDs para procesar." };
+        }
+        const config = loadAutoridadesConfig();
+        let count = 0;
+        const errors = [];
+        for (const rawId of ids) {
+            const docId = String(rawId).trim();
+            try {
+                const record = firestoreGetDoc("Registros", docId);
+                if (!record) {
+                    errors.push(docId + ': Registro no encontrado en Firebase.');
+                    continue;
+                }
+                const apellidosReal = record['APELLIDOS'] || docId;
+                // Enriquecer con datos del secretario (siempre frescos)
+                const authKey = String(record['AUTORIDAD'] || '').trim().toUpperCase();
+                if (config[authKey]) {
+                    record['SECRETARIO'] = config[authKey].secretario;
+                    record['CORREO SECRETARIO'] = config[authKey].correo;
+                }
+                // Pasar el record pre-cargado: bypasea chequeo de finalizado y evita re-lecturas
+                const result = executeAction(docId, actionType, record);
+                if (result.success) {
+                    count++;
+                }
+                else {
+                    errors.push(apellidosReal + ': ' + result.message);
+                }
+            }
+            catch (e) {
+                errors.push(docId + ': ' + e.toString());
+            }
+        }
+        return {
+            success: errors.length === 0,
+            count: count,
+            errors: errors,
+            message: 'Se procesaron ' + count + ' de ' + ids.length + ' registros.' + (errors.length > 0 ? ' Errores: ' + errors.length : '')
+        };
+    }
+    catch (e) {
+        Logger.log("Error en executeBulkActionByIDs: " + e.message);
+        return { success: false, count: 0, errors: [e.message], message: "Error crítico: " + e.message };
     }
 }
 function markAsNotified(rowIndex, isNotified) {
@@ -1147,47 +965,46 @@ function markAsNotified(rowIndex, isNotified) {
     }
 }
 function executeBulkAction(actionType) {
-    const sheet = getMainSheet();
-    if (!sheet)
-        return { success: false, message: 'Hoja no encontrada.' };
-    const values = sheet.getDataRange().getValues();
-    const headers = values[0].map(normalizeHeader);
-    const checkIndex = headers.indexOf('CHECK');
-    const idIndex = headers.indexOf('ID');
-    if (checkIndex === -1 || idIndex === -1) {
-        return { success: false, message: "Columna 'CHECK' o 'ID' no encontrada." };
-    }
-    let count = 0;
-    let errors = [];
-    for (let i = 1; i < values.length; i++) {
-        const row = values[i];
-        const isChecked = row[checkIndex];
-        const hasContent = row.some(cell => cell !== '' && cell !== null && cell !== undefined);
-        if (hasContent && (isChecked === false || isChecked === '' || isChecked === null || isChecked === undefined || isChecked === 'FALSE')) {
-            try {
-                const recordId = row[idIndex];
-                const result = executeAction(recordId, actionType);
-                if (result.success)
-                    count++;
-                else
-                    errors.push('Fila ' + (i + 1) + ': ' + result.message);
-            }
-            catch (e) {
-                errors.push('Fila ' + (i + 1) + ': ' + e.toString());
+    try {
+        const records = firestoreGetAllDocs("Registros");
+        if (!records || records.length === 0) {
+            return { success: false, message: "No se encontraron registros en Firebase." };
+        }
+        let count = 0;
+        let errors = [];
+        for (const record of records) {
+            const isChecked = record['CHECK'];
+            const recordId = record['__id'] || record['ID'] || record['ID_REG'];
+            const apellidos = record['APELLIDOS'] || 'Sin Apellido';
+            // Procesamos solo si CHECK es falso, vacío o string 'FALSE'
+            const checkStr = String(isChecked || '').trim().toUpperCase();
+            if (isChecked === false || isChecked === '' || isChecked === null || isChecked === undefined || checkStr === 'FALSE') {
+                try {
+                    // Pasamos el record directamente para evitar re-lectura y bugs de latencia/referencia
+                    const result = executeAction(String(recordId), actionType, record);
+                    if (result.success) {
+                        count++;
+                    }
+                    else {
+                        errors.push(apellidos + ': ' + result.message);
+                    }
+                }
+                catch (e) {
+                    errors.push(apellidos + ': ' + e.toString());
+                }
             }
         }
+        return {
+            success: errors.length === 0,
+            count: count,
+            errors: errors,
+            message: 'Se procesaron ' + count + ' registros.' + (errors.length > 0 ? ' Errores: ' + errors.length : '')
+        };
     }
-    if (count === 0 && errors.length === 0) {
-        return { success: false, message: "No hay registros sin procesar (CHECK destildado). Destildá las filas que querés procesar." };
+    catch (e) {
+        Logger.log("Error en executeBulkAction (Firebase): " + e.message);
+        return { success: false, message: "Error crítico en proceso por lotes: " + e.message };
     }
-    if (count === 0 && errors.length > 0) {
-        return { success: false, message: 'No se procesó ningún registro. Errores: ' + errors.join('; ') };
-    }
-    return {
-        success: true,
-        count: count,
-        message: 'Se ejecutó "' + actionType + '" en ' + count + ' registros.' + (errors.length > 0 ? ' Errores en ' + errors.length + ' filas.' : '')
-    };
 }
 function checkAndAssignIds() {
     const sheet = getMainSheet();
@@ -1261,18 +1078,33 @@ function getFilePreviewUrl(rowData, type) {
         const req = String(rowData['REQ'] || 'S/N').trim();
         const apellidos = String(rowData['APELLIDOS'] || 'S/A').trim();
         const autoridad = String(rowData['AUTORIDAD'] || 'S/Aut').trim();
+        const recordId = rowData['ID_REG'] || rowData['ID'];
         if (type === 'CONTRATO') {
             folderId = CARPETA_FUSION_CONTRATO;
         }
         else if (type === 'RESOLUCION') {
             folderId = CARPETA_FUSION_RESOLUCIONES;
         }
+        else if (type === 'NOTA') {
+            folderId = CARPETA_NOTAS;
+        }
         const folder = DriveApp.getFolderById(folderId);
         const files = folder.getFiles();
         while (files.hasNext()) {
             const file = files.next();
             const name = file.getName();
-            if (type === 'CONTRATO') {
+            if (type === 'NOTA') {
+                const fileNumber = String(recordId).padStart(3, '0');
+                // El patrón es: NNN) AUTORIZA ...
+                if (name.startsWith(fileNumber + ")") && name.toLowerCase().includes(".pdf")) {
+                    return {
+                        success: true,
+                        url: file.getUrl().replace('/view', '/preview'),
+                        name: name
+                    };
+                }
+            }
+            else if (type === 'CONTRATO') {
                 if (name.toLowerCase().includes("contrato") &&
                     apellidos !== "" && name.toLowerCase().includes(apellidos.toLowerCase()) &&
                     autoridad !== "" && name.toLowerCase().includes(autoridad.toLowerCase())) {
@@ -1333,7 +1165,7 @@ function findRowById(sheet, id) {
     if (values.length < 2)
         return -1;
     const headers = values[0].map(normalizeHeader);
-    const idCol = headers.indexOf('ID');
+    const idCol = headers.indexOf('ID_REG') !== -1 ? headers.indexOf('ID_REG') : headers.indexOf('ID');
     if (idCol === -1)
         return -1;
     const targetId = String(id).trim();
@@ -1343,4 +1175,160 @@ function findRowById(sheet, id) {
         }
     }
     return -1;
+}
+/**
+ * ── FUNCIONES DE ADMINISTRACIÓN (SOLO ROL ADMIN) ──
+ */
+/**
+ * Obtiene datos de cualquier colección para las tablas del Panel Admin
+ */
+function getAdminTableData(collection) {
+    if (!canManageAutoridadesByCurrentUser())
+        return { success: false, message: "No autorizado" };
+    try {
+        const data = firestoreGetAllDocs(collection);
+        return { success: true, data: data };
+    }
+    catch (e) {
+        return { success: false, message: e.message };
+    }
+}
+/**
+ * Trae todos los documentos de una colección para el Admin Hub
+ */
+function adminActionGet(collection) {
+    try {
+        const data = firestoreGetAllDocs(collection);
+        return { ok: true, data: data };
+    }
+    catch (e) {
+        return { ok: false, message: e.message };
+    }
+}
+function syncAdminToSheet(collection, docId, data, isDelete) {
+    const map = [
+        { sheet: "REGISTROS", col: "Registros", id: "ID_REG" },
+        { sheet: "REQUERIMIENTOS_CD", col: "Requerimientos", id: "ID_REQ" },
+        { sheet: "DOCUMENTOS_CD", col: "Documentos", id: "DOC_ID" },
+        { sheet: "CONTROL", col: "Control", id: "CONTROL" },
+        { sheet: "AUTORIDADES", col: "Autoridades", id: "ID_AUT" },
+        { sheet: "AUXILIARES", col: "Auxiliares", id: "ID_AUX" },
+        { sheet: "USUARIOS", col: "Usuarios", id: "ID_USER" }
+    ];
+    const config = map.find(m => m.col === collection);
+    if (!config)
+        return;
+    const ss = getSS();
+    if (!ss)
+        return;
+    const sheet = ss.getSheetByName(config.sheet);
+    if (!sheet)
+        return;
+    const d = sheet.getDataRange().getValues();
+    if (d.length < 2)
+        return;
+    const headers = d[0].map(h => String(h).trim().toUpperCase());
+    const idIndex = headers.indexOf(config.id);
+    if (idIndex === -1)
+        return;
+    let rowIndex = -1;
+    const targetId = String(docId).trim();
+    for (let i = 1; i < d.length; i++) {
+        let rowId = String(d[i][idIndex]).trim();
+        if (rowId.endsWith(".0"))
+            rowId = rowId.substring(0, rowId.length - 2);
+        // Comparación robusta entre strings
+        if (String(rowId) === String(targetId)) {
+            rowIndex = i + 1; // 1-based index para Sheet UI
+            break;
+        }
+    }
+    if (isDelete) {
+        if (rowIndex > -1) {
+            sheet.deleteRow(rowIndex);
+        }
+    }
+    else {
+        // Si no es borrar, es Update o Create
+        if (rowIndex > -1) {
+            // Actualizar existente celda por celda
+            headers.forEach((h, colIdx) => {
+                if (data[h] !== undefined) {
+                    sheet.getRange(rowIndex, colIdx + 1).setValue(data[h]);
+                }
+            });
+        }
+        else {
+            // Crear nueva fila
+            const newRow = new Array(headers.length).fill("");
+            headers.forEach((h, colIdx) => {
+                if (data[h] !== undefined) {
+                    newRow[colIdx] = data[h];
+                }
+            });
+            newRow[idIndex] = targetId;
+            sheet.appendRow(newRow);
+        }
+    }
+}
+/**
+ * Guarda o actualiza un documento en cualquier colección
+ */
+function adminActionSave(collection, docId, data) {
+    try {
+        if (!collection || !docId)
+            throw new Error("Parámetros de guardado incompletos.");
+        // Solo escribimos en Firestore. El synchronization mirror se encargará del Sheet.
+        firestoreUpdateDocument(collection, docId, data);
+        logActivity(`ADMIN: Actualizó/Creó registro en ${collection} (Firebase-First)`);
+        return { ok: true };
+    }
+    catch (e) {
+        Logger.log(`Error en adminActionSave [${collection}]: ` + e.message);
+        return { ok: false, message: e.message };
+    }
+}
+/**
+ * Elimina un documento de cualquier colección en Firebase
+ */
+function adminActionDelete(collection, docId) {
+    try {
+        firestoreDeleteDocument(collection, docId);
+        logActivity(`ADMIN: Eliminó registro ${docId} de ${collection} (Firebase-First)`);
+        return { ok: true };
+    }
+    catch (e) {
+        return { ok: false, message: e.message };
+    }
+}
+/**
+ * Elimina múltiples documentos de cualquier colección en Firebase
+ */
+function adminActionBulkDelete(collection, docIds) {
+    try {
+        let count = 0;
+        docIds.forEach(id => {
+            firestoreDeleteDocument(collection, id);
+            count++;
+        });
+        logActivity(`ADMIN: Eliminó en lote ${count} registros de ${collection} (Firebase-First)`);
+        return { ok: true, count: count };
+    }
+    catch (e) {
+        return { ok: false, message: e.message };
+    }
+}
+/**
+ * Fuerza una migración completa de los Sheets a Firebase para corregir desincronizaciones
+ */
+function adminActionSyncAll() {
+    try {
+        // RECTIFICACIÓN: En sistema Firebase-First, la sincronización masiva debe ser Firebase -> Sheet
+        syncAllFirebaseToSheets();
+        logActivity(`ADMIN: Sincronización Espejo (Firebase -> Sheets) completada`);
+        return { ok: true, message: "Sincronización espejo finalizada. Los Sheets ahora reflejan los datos de Firebase." };
+    }
+    catch (e) {
+        return { ok: false, message: e.message };
+    }
 }

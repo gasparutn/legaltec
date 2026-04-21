@@ -204,7 +204,7 @@ function trimData(data) {
     const result = {};
     for (let key in data) {
         if (typeof data[key] === 'string') {
-            result[key] = data[key].trim();
+            result[key] = sanitizeInput(data[key].trim());
         }
         else {
             result[key] = data[key];

@@ -41,6 +41,7 @@
     let rowToDeleteIdx = -1;
     let autoridadesConfig = {}; // Mapeo de autoridad -> {secretario, correo}
     let currentUserRole = null; // Rol del usuario actual
+    let currentUserAutor = null; // Código de autor (GA, JU, NI...)
     let generatingForm = false; // Flag para evitar ejecuciones simultáneas de generateFormFields
     let currentDataVersion = null; // Versión detectada del Sheet
     let syncInterval = null; // ID del intervalo de sincronización
@@ -120,7 +121,9 @@
       hideModal(dataModal);
       hideModal(confirmModal);
       hideModal(globalActionModal);
-      dataForm.reset();
+      editingRowIdx = -1;
+      // NOTA: No llamamos dataForm.reset() para no borrar los datos del formulario
+      // Los datos se limpian correctamente en generateFormFieldsContent al regenerar el form
     }
 
     // --- Funciones de Sincronización y Utilidad ---
@@ -132,19 +135,28 @@
       if (!val) return '';
       const str = String(val).trim();
 
-      // Caso 1: Formato DD/MM/YYYY o D/M/YYYY
-      const partsSlash = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (partsSlash) {
-        return `${partsSlash[3]}-${partsSlash[2].padStart(2, '0')}-${partsSlash[1].padStart(2, '0')}`;
+      // Caso 1: Formato YYYY-MM-DD (ISO) — ya está correcto
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+      // Caso 2: Formato DD-MM-YYYY o DD/MM/YYYY (soporta si viene con hora o espacios extra)
+      const parts = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+      if (parts) {
+        const d = parts[1].padStart(2, '0');
+        const m = parts[2].padStart(2, '0');
+        const y = parts[3];
+        return `${y}-${m}-${d}`;
       }
 
-      // Intento vía objeto Date nativo
+      // Caso 3: Objeto Date o cadena de fecha nativa
       const d = new Date(val);
       if (!isNaN(d.getTime())) {
-        return d.toISOString().split('T')[0];
+        const y = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, '0');
+        const dy = String(d.getDate()).padStart(2, '0');
+        return `${y}-${mo}-${dy}`;
       }
 
-      return str;
+      return ''; // Si no pudo parsear, mejor devolver vacío que un valor inválido que bloquee el campo
     }
 
     /**
@@ -219,15 +231,29 @@
       // Actualiza solo el SELECT de AUTORIDAD sin cerrar el modal ni recargar formulario
       const ts = new Date().getTime(); // Cache buster
       google.script.run
-        .withSuccessHandler(autoridades => {
-          if (autoridades && Object.keys(autoridades).length > 0) {
-            autoridadesConfig = autoridades;
-            const apellidosList = Object.keys(autoridadesConfig).sort();
-            CONFIG.SELECT_COLUMNS['AUTORIDAD'] = ['', ...apellidosList];
+        .withSuccessHandler(autoridadesFromServer => {
+          // Fusionar lista del servidor con opciones predefinidas, garantizando VICE y LEGISLATIVA
+          const PREDEFINED_AUTORIDADES = [
+            'ADM', 'ANA', 'ASES', 'BARRO', 'CANO', 'CHAPPEL', 'DERRACHE', 'DIUMENJO',
+            'EISENCHLAS', 'FLORIDIA', 'FREIDEMBERG', 'GALI\u00d1ARES', 'G\u00d3MEZ', 'GONZ\u00c1LEZ F.',
+            'GONZ\u00c1LEZ V.', 'IGLESIAS', 'KERCHNER', 'LAFERTE', 'LEGISLATIVA', 'MAGISTRETTI',
+            'MANONI', 'MARCOLINI', 'MARQUEZ', 'NAJUL', 'PERVIU', 'PEZZUTTI', 'PRADINES',
+            'PRINGLES', 'QUATTRINI', 'ROSTAND', 'RUS', 'SABADIN', 'S\u00c1EZ', 'SAINZ', 'SAT',
+            'SERRA', 'SEVILLA', 'SOTO', 'VAQUER', 'VICCHI', 'VICE', 'ZLOBEC'
+          ];
+
+          if (autoridadesFromServer && Object.keys(autoridadesFromServer).length > 0) {
+            autoridadesConfig = autoridadesFromServer;
           }
 
+          // Combinar: servidor + predefinidas, sin duplicados
+          const serverKeys = Object.keys(autoridadesConfig).map(k => k.toUpperCase());
+          const allKeys = new Set([...serverKeys, ...PREDEFINED_AUTORIDADES]);
+          const apellidosList = Array.from(allKeys).sort();
+          CONFIG.SELECT_COLUMNS['AUTORIDAD'] = ['', ...apellidosList];
+
           const autoridadSelect = document.getElementById('AUTORIDAD');
-          if (autoridadSelect && autoridadSelect.closest('form')) { // Solo si está en el modal abierto
+          if (autoridadSelect && autoridadSelect.closest('form')) { // Solo si est\u00e1 en el modal abierto
             const currentVal = forcedSelectedValue || autoridadSelect.value;
             autoridadSelect.innerHTML = '';
             CONFIG.SELECT_COLUMNS['AUTORIDAD'].forEach(v => {
@@ -246,14 +272,23 @@
               }
             });
 
-            // Si no encontramos, dejar el primero (vacío)
+            // Si no encontramos, dejar el primero (vac\u00edo)
             if (!found && autoridadSelect.options.length > 0) {
               autoridadSelect.options[0].selected = true;
             }
 
-            // Disparar evento change para actualizar secretario/correo
-            const event = new Event('change', { bubbles: true });
-            autoridadSelect.dispatchEvent(event);
+            // IMPORTANTE: Actualizar secretario/correo DIRECTAMENTE (sin dispatchEvent)
+            // para evitar que el evento bubbling afecte otros inputs del formulario (ej: FECHA ALTA)
+            const selectedVal = autoridadSelect.value.trim().toUpperCase();
+            const info = autoridadesConfig[selectedVal] || { secretario: '', correo: '' };
+            const secInput = document.getElementById('SECRETARIO');
+            const mailInput = document.getElementById('CORREO SECRETARIO');
+            if (secInput && info.secretario) secInput.value = info.secretario;
+            if (mailInput && info.correo) mailInput.value = info.correo;
+            const hiddenSec = document.getElementById('hidden_SEC');
+            const hiddenMail = document.getElementById('hidden_MAIL');
+            if (hiddenSec && info.secretario) hiddenSec.value = info.secretario;
+            if (hiddenMail && info.correo) hiddenMail.value = info.correo;
           }
         })
         .withFailureHandler(err => console.error("Error al refrescar AUTORIDADES: " + err))
@@ -429,7 +464,7 @@
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.className = 'action-checkbox';
-            cb.checked = cellData === true;
+            cb.checked = (cellData === true || String(cellData || '').toUpperCase() === 'TRUE');
             cb.dataset.originalIdx = originalIdx;
             cb.title = cb.checked ? 'Tildado (procesado). Click para destilar y habilitar acción.' : 'Destildado. Se procesará al ejecutar una acción.';
             // Guardar el cambio en el Sheet cuando el usuario tilda/destilda
@@ -462,13 +497,15 @@
             td.appendChild(cb);
             td.style.textAlign = 'center';
           } else if (hName === 'OPC') {
+            const btnN = createOptBtn('N', 'preview-note', 'Previsualizar Nota', () => handlePreviewFile(rowData, 'NOTA'));
             const btnW = createOptBtn('W', 'preview-word', 'Previsualizar Contrato', () => handlePreviewFile(rowData, 'CONTRATO'));
             const btnT = createOptBtn('📄', 'preview-txt', 'Previsualizar Resolución', () => handlePreviewFile(rowData, 'RESOLUCION'));
             const btnE = createOptBtn('&#9998;', 'edit', 'Editar', (e) => handleEditClick(originalIdx));
+            const btnR = createOptBtn('&#x21BB;', 'renew', 'Renovar Contrato', () => handleRenovarClick(originalIdx, rowData));
             const btnD = createOptBtn('&#128465;', 'delete', 'Eliminar', () => handleDeleteClick(originalIdx));
 
-            td.appendChild(btnW); td.appendChild(btnT); td.appendChild(btnE); td.appendChild(btnD);
-            td.style.minWidth = '140px';
+            td.appendChild(btnN); td.appendChild(btnW); td.appendChild(btnT); td.appendChild(btnE); td.appendChild(btnR); td.appendChild(btnD);
+            td.style.minWidth = '195px';
           } else if (hName === 'ESTADO') {
             td.textContent = cellData;
             if (cellData) {
@@ -536,6 +573,7 @@
           { field: 'GENERA RESOLUCION', label: 'GENERA RESOLUCION' },
           { field: 'FECHA NOTIFICA', label: 'FECHA NOTIFICA' },
           { field: 'BAJA CONTRATO', label: 'FECHA DE BAJA' },
+          { field: 'CREA REGISTRO', label: 'CREA REGISTRO' },
           { field: 'AUTOR', label: 'AUTOR' }
         ];
 
@@ -657,7 +695,8 @@
             if (hasFile) {
               const file = notaPdfFile.files[0];
               const reader = new FileReader();
-              const recordId = r.newId || (editingRowIdx + 1); // Usar el nuevo ID si es creación, sino el ID de edición
+              const recordId = r.newId || editingRowIdx; // Usar el nuevo ID si es creación, sino el ID de edición
+              const autorNota = fd['AUTOR'] || '';
               reader.onload = (event) => {
                 const base64Data = event.target.result.split(',')[1]; // Obtener solo la parte base64
                 google.script.run
@@ -675,7 +714,7 @@
                     closeAllModals();
                     loadData();
                   })
-                  .uploadNotaPdf(base64Data, fd['APELLIDOS'], fd['AUTORIDAD'], recordId);
+                  .uploadNotaPdf(base64Data, fd['APELLIDOS'], fd['AUTORIDAD'], recordId, autorNota);
               };
               reader.readAsDataURL(file);
             } else {
@@ -693,8 +732,8 @@
           showMessage(err.message, true);
         });
 
-      if (editingRowIdx === -1) run.addRow(fd);
-      else run.updateRow(editingRowIdx, fd);
+      if (editingRowIdx === -1) run.addRow(fd, currentUserAutor);
+      else run.updateRow(editingRowIdx, fd, currentUserAutor);
     };
 
     if (btnGeneraNota) {
@@ -813,35 +852,22 @@
       generateFormFieldsContent(rowData);
       generatingForm = false;
 
-      // Refrescar datos en background SIN bloquear la UI
+      // Refrescar datos en background SIN bloquear la UI si fuera necesario, 
+      // pero no llamamos a refreshTareasSelect() aquí porque pisa el valor cargado.
       setTimeout(() => {
-        google.script.run
-          .withSuccessHandler(tareas => {
-            if (tareas && tareas.length > 0) {
-              CONFIG.SELECT_COLUMNS['TAREAS'] = ['', ...tareas];
-            }
-            refreshTareasSelect(); // Actualizar SELECT con nuevos datos
-          })
-          .getTareasList(new Date().getTime());
+        // Para AUTORIDADES: refrescar en background preservando el valor ya seleccionado
+        const autoridadSelect = document.getElementById('AUTORIDAD');
+        const currentAutoridadValue = autoridadSelect ? autoridadSelect.value : '';
+        refreshAutoridadesSelect(currentAutoridadValue || undefined);
+      }, 150); 
 
-        google.script.run
-          .withSuccessHandler(autoridades => {
-            if (autoridades && Object.keys(autoridades).length > 0) {
-              autoridadesConfig = autoridades;
-              const apellidosList = Object.keys(autoridadesConfig).sort();
-              CONFIG.SELECT_COLUMNS['AUTORIDAD'] = ['', ...apellidosList];
-            }
-            refreshAutoridadesSelect(); // Actualizar SELECT con nuevos datos
-          })
-          .getAutoridadesList(new Date().getTime());
-      }, 100); // Pequeño delay para no bloquear
     }
 
     function generateFormFieldsContent(rowData) {
       // Limpiar nuevamente para asegurar que no hay duplicados
       formFields.innerHTML = '';
 
-      const EXCLUDED = ['Id', 'ID', 'CheckBox', 'OPC', 'ACCION', 'CHECK', 'FECHA NOTIFICA', 'FECHA BAJA CONTRATO', 'GENERA CONTRATO', 'GENERA RESOLUCION', 'BAJA CONTRATO'];
+      const EXCLUDED = ['Id', 'ID', 'ID_REG', 'id_reg', 'CheckBox', 'OPC', 'ACCION', 'CHECK', 'FECHA NOTIFICA', 'FECHA BAJA CONTRATO', 'GENERA CONTRATO', 'GENERA RESOLUCION', 'BAJA CONTRATO', 'CREA REGISTRO', 'AUTOR'];
       const allHeaders = [...currentHeaders, ...hiddenHeaders];
       const editable = allHeaders.filter(h => !EXCLUDED.includes(h) && (h !== 'ESTADO' || editingRowIdx !== -1));
 
@@ -851,8 +877,7 @@
         { type: 'form-row-flex', fields: ['FECHA ALTA', 'FECHA DE ALTA', 'TOTAL', 'CUOTA', 'REQ'] },
         { type: 'form-row-flex', fields: ['SECRETARIO', 'CORREO SECRETARIO', 'CORREO LOCADOR'] },
         { type: 'form-row-flex', fields: ['DOMICILIO', 'LOCALIDAD', 'FECHA BAJA', 'FECHA DE BAJA'] },
-        { type: 'form-row-flex', fields: ['AUTOR', [ESTADO]] }
-        // { type: 'form-row-flex', fields: ['ESTADO'] }
+        { type: 'form-row-flex', fields: ['ESTADO'] }
       ];
 
       const classMap = {
@@ -875,7 +900,7 @@
         'FECHA BAJA': 'w-fecha',
         'FECHA DE BAJA': 'w-fecha',
         'AUTOR': 'w-autor',
-        'ESTADO': 'w-flex'
+        'ESTADO': 'w-estado'
       };
 
       const fieldDivs = {};
@@ -1142,14 +1167,20 @@
             } else {
               // Intenta obtener el valor por el nombre exacto o por alias común
               let finalVal = rowData[h];
-              if (finalVal === undefined || finalVal === '') {
-                if (h === 'FECHA ALTA') finalVal = rowData['FECHA DE ALTA'];
-                if (h === 'FECHA BAJA') finalVal = rowData['FECHA DE BAJA'];
+              // Buscar alias aunque la clave principal exista pero esté vacía
+              if (!finalVal && (h === 'FECHA ALTA' || h === 'FECHA DE ALTA')) {
+                 finalVal = rowData['FECHA ALTA'] || rowData['FECHA DE ALTA'] || rowData['FECHA_ALTA'];
+              }
+              if (!finalVal && (h === 'FECHA BAJA' || h === 'FECHA DE BAJA')) {
+                 finalVal = rowData['FECHA BAJA'] || rowData['FECHA DE BAJA'] || rowData['FECHA_BAJA'];
               }
 
               if (CONFIG.DATE_COLUMNS.includes(h) && finalVal) {
+                const oldVal = finalVal;
                 finalVal = formatDateForInput(finalVal);
-                if (h === 'FECHA ALTA') console.log("Diagnóstico FECHA ALTA:", { original: rowData[h], rowData: rowData, final: finalVal });
+                if (!finalVal && (h === 'FECHA ALTA' || h === 'FECHA DE ALTA')) {
+                   console.error("Fallo de formateo en campo crítico:", { campo: h, valorRecibido: oldVal, rowData: rowData });
+                }
               }
               targetInput.value = finalVal || '';
             }
@@ -1226,7 +1257,25 @@
     function getFormData() {
       const fd = {};
       formFields.querySelectorAll('input, select').forEach(i => { if (i.name) fd[i.name] = i.value; });
-      if (editingRowIdx === -1) { fd['CHECK'] = true; fd['ESTADO'] = 'Pendiente'; }
+      if (editingRowIdx === -1) { 
+        fd['CHECK'] = true; 
+        fd['ESTADO'] = 'Pendiente'; 
+        if (currentUserAutor) fd['AUTOR'] = currentUserAutor; // Asignar autor al crear
+      } else {
+        // Al editar, si AUTOR o CREA REGISTRO no están en el form (por estar EXCLUDED), preservarlos del registro original
+        const row = originalData.find(r => String(r[currentHeaders.length + hiddenHeaders.length]) === String(editingRowIdx));
+        if (row) {
+          const hs = [...currentHeaders, ...hiddenHeaders];
+          if (fd['AUTOR'] === undefined) {
+             const autorIdx = hs.indexOf('AUTOR');
+             if (autorIdx !== -1) fd['AUTOR'] = row[autorIdx];
+          }
+          if (fd['CREA REGISTRO'] === undefined) {
+             const creaIdx = hs.indexOf('CREA REGISTRO');
+             if (creaIdx !== -1) fd['CREA REGISTRO'] = row[creaIdx];
+          }
+        }
+      }
 
       // Si el modal no generó inputs visibles para Secretario/Correo (ej: por estar excluidos), usar los hidden_SEC/MAIL como fallback
       if (fd['SECRETARIO'] === undefined) {
@@ -1240,63 +1289,31 @@
 
     function handleEditClick(originalIdx) {
       editingRowIdx = originalIdx;
-      modalTitle.textContent = 'Editar Registro... (Sincronizando)';
-      if (btnRenovarContrato) btnRenovarContrato.style.display = 'inline-block';
+      modalTitle.textContent = 'Editar Registro';
       if (tipoNotaSelect) tipoNotaSelect.value = '';
       if (sexoNotaSelect) sexoNotaSelect.value = '';
 
-      // Buscar el ID real del registro
-      const rowIdxInArray = originalData.findIndex(r => r[currentHeaders.length + hiddenHeaders.length] === originalIdx);
-      if (rowIdxInArray === -1) return;
-      const recordId = originalData[rowIdxInArray][0]; // El ID está en la primera columna
+      // Buscar la fila en los datos locales (APERTURA INMEDIATA — sin llamada al servidor)
+      const rowIdxInArray = originalData.findIndex(r => String(r[currentHeaders.length + hiddenHeaders.length]) === String(originalIdx));
+      if (rowIdxInArray === -1) {
+        showMessage('Registro no encontrado en los datos locales.', true);
+        return;
+      }
 
-      // Sincronización de última hora antes de abrir el modal
-      google.script.run
-        .withSuccessHandler(response => {
-          if (response.success && response.data.length > 0) {
-            const freshRow = response.data[0];
-            // Actualizar originalData con la versión más reciente del Sheet
-            originalData[rowIdxInArray] = freshRow;
-            modalTitle.textContent = 'Editar Registro';
-            const obj = {};
-            const hs = [...currentHeaders, ...hiddenHeaders];
-            hs.forEach((h, i) => obj[h] = freshRow[i]);
-            generateFormFields(obj);
-            showModal(dataModal);
-            // Cuando se cambia el tipo de nota, actualizar campos visibles
-            if (tipoNotaSelect) {
-              tipoNotaSelect.onchange = () => applyNotaFieldVisibility(tipoNotaSelect.value);
-            }
-          } else {
-            console.warn("No se pudo sincronizar el registro, usando datos locales.");
-            const row = originalData[rowIdxInArray];
-            modalTitle.textContent = 'Editar Registro';
-            const obj = {};
-            const hs = [...currentHeaders, ...hiddenHeaders];
-            hs.forEach((h, i) => obj[h] = row[i]);
-            generateFormFields(obj);
-            showModal(dataModal);
-            // Cuando se cambia el tipo de nota, actualizar campos visibles
-            if (tipoNotaSelect) {
-              tipoNotaSelect.onchange = () => applyNotaFieldVisibility(tipoNotaSelect.value);
-            }
-          }
-        })
-        .withFailureHandler(err => {
-          console.error("Error en sincronización rápida:", err);
-          const row = originalData[rowIdxInArray];
-          modalTitle.textContent = 'Editar Registro';
-          const obj = {};
-          const hs = [...currentHeaders, ...hiddenHeaders];
-          hs.forEach((h, i) => obj[h] = row[i]);
-          generateFormFields(obj);
-          showModal(dataModal);
-          // Cuando se cambia el tipo de nota, actualizar campos visibles
-          if (tipoNotaSelect) {
-            tipoNotaSelect.onchange = () => applyNotaFieldVisibility(tipoNotaSelect.value);
-          }
-        })
-        .getLatestDataByIDs([recordId]);
+      // Abrir el modal INMEDIATAMENTE con los datos locales (sin esperar al servidor)
+      const row = originalData[rowIdxInArray];
+      const obj = {};
+      const hs = [...currentHeaders, ...hiddenHeaders];
+      hs.forEach((h, i) => obj[h] = row[i]);
+      console.log("Abriendo edición para ID:", originalIdx, "Objeto mapeado:", obj);
+      generateFormFields(obj);
+      showModal(dataModal);
+
+      // Configurar listener de tipo de nota
+      if (tipoNotaSelect) {
+        tipoNotaSelect.onchange = () => applyNotaFieldVisibility(tipoNotaSelect.value);
+      }
+
     }
 
     /**
@@ -1333,23 +1350,65 @@
       }
     }
 
+    // Función para manejar el click de Renovar desde la tabla
+    function handleRenovarClick(originalIdx, rowData) {
+      if (!confirm('\u00bfDeseas renovar este registro? Se crear\u00e1 una copia nueva al final de la tabla sin Fecha de Alta, n\u00famero de Requerimiento ni Autoridad.')) return;
+
+      // Construir objeto con todos los campos del registro
+      const obj = {};
+      const hs = [...currentHeaders, ...hiddenHeaders];
+      hs.forEach((h, i) => obj[h] = rowData[i]);
+
+      // Limpiar campos que no se deben copiar: FECHA ALTA, REQ, AUTORIDAD, ESTADO y fechas de documentos
+      const objParaRenew = Object.assign({}, obj);
+      delete objParaRenew['FECHA ALTA'];
+      delete objParaRenew['FECHA DE ALTA'];
+      delete objParaRenew['REQ'];
+      delete objParaRenew['AUTORIDAD'];
+      delete objParaRenew['ESTADO'];
+      if (currentUserAutor) objParaRenew['AUTOR'] = currentUserAutor; // Nuevo autor al renovar
+
+      delete objParaRenew['GENERA CONTRATO'];
+      delete objParaRenew['GENERA RESOLUCION'];
+      delete objParaRenew['FECHA NOTIFICA'];
+      delete objParaRenew['BAJA CONTRATO'];
+      delete objParaRenew['FECHA BAJA'];
+      delete objParaRenew['FECHA DE BAJA'];
+      objParaRenew['CHECK'] = false; // La nueva fila empieza sin procesar
+
+      google.script.run
+        .withSuccessHandler(r => {
+          if (r.success) {
+            showMessage('Registro renovado con ID: ' + r.newId + '. Actualizando tabla...');
+            // Forzar recarga con filtro 'all' para que aparezca el nuevo registro (sin FECHA ALTA)
+            // independientemente del filtro de periodo activo en pantalla
+            google.script.run
+              .withSuccessHandler(response => {
+                try {
+                  if (!response || !response.success) return;
+                  originalData = response.data || [];
+                  currentHeaders = response.headers || [];
+                  hiddenHeaders = response.hiddenHeaders || [];
+                  filteredData = [...originalData];
+                  currentPage = 1;
+                  updatePaginationControls();
+                  renderTable(currentHeaders, filteredData);
+                  showMessage('\u2713 Registro renovado y tabla actualizada. ID: ' + r.newId);
+                } catch (e) { console.error(e); }
+              })
+              .withFailureHandler(() => loadData()) // fallback
+              .getData({ type: 'all' });
+          } else {
+            showMessage('Error al renovar: ' + r.message, true);
+          }
+        })
+        .withFailureHandler(err => showMessage('Error al conectar: ' + err.message, true))
+        .addRow(objParaRenew);
+    }
+
+    // El botón btnRenovarContrato del modal se oculta (la funcionalidad se movió a la tabla)
     if (btnRenovarContrato) {
-      btnRenovarContrato.onclick = () => {
-        editingRowIdx = -1;
-        modalTitle.textContent = 'Agregar Registro/Crear Notas (Renovación)';
-
-        // Poner estado en Pendiente
-        const selectEstado = document.getElementById('ESTADO');
-        if (selectEstado) {
-          selectEstado.value = 'Pendiente';
-          const event = new Event('change', { bubbles: true });
-          selectEstado.dispatchEvent(event);
-        }
-
-        btnRenovarContrato.style.display = 'none';
-
-        showMessage('Datos copiados. Configure las fechas y requisitos. Luego presione Guardar.', false);
-      };
+      btnRenovarContrato.style.display = 'none';
     }
 
     function handleDeleteClick(originalIdx) {
@@ -1389,7 +1448,37 @@
     }
 
     confirmDeleteButton.onclick = () => {
-      google.script.run.withSuccessHandler(r => { if (r.success) { showMessage(r.message); closeAllModals(); loadData(); } else showMessage(r.message, true); }).deleteRow(rowToDeleteIdx);
+      // --- Eliminación optimista: actualizar UI de inmediato ---
+      const originalIdxMeta = currentHeaders.length + hiddenHeaders.length;
+      const idxInOriginal = originalData.findIndex(r => String(r[originalIdxMeta]) === String(rowToDeleteIdx));
+      if (idxInOriginal !== -1) {
+        originalData.splice(idxInOriginal, 1);
+        filteredData = filteredData.filter(r => r[originalIdxMeta] !== rowToDeleteIdx);
+        // Si la página actual quedó vacía tras la eliminación, retroceder una página
+        const totalPages = rowsPerPage === 'all' ? 1 : Math.ceil(filteredData.length / rowsPerPage);
+        if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+        updatePaginationControls();
+        renderTable(currentHeaders, filteredData);
+      }
+      closeAllModals();
+      showMessage('Eliminando registro...');
+
+      // --- Confirmar con el servidor en background ---
+      google.script.run
+        .withSuccessHandler(r => {
+          if (r.success) {
+            showMessage(r.message);
+            loadData(true); // Sincronización silenciosa para actualizar IDs
+          } else {
+            showMessage('Error al eliminar: ' + r.message, true);
+            loadData(); // Revertir si el servidor falló
+          }
+        })
+        .withFailureHandler(err => {
+          showMessage('Error de conexión: ' + err.message, true);
+          loadData(); // Revertir
+        })
+        .deleteRow(rowToDeleteIdx);
     };
 
     function resetGlobalActionModal() {
@@ -1429,7 +1518,7 @@
       const type = globalActionSelect.value;
       if (!type) return showMessage('Selecciona acción', true);
 
-      // Encontrar índices a procesar (CHECK destildado)
+      // Encontrar registros seleccionados para validar antes de empezar
       const checkIdx = currentHeaders.indexOf('CHECK');
       const rowsToProcess = originalData.filter(row => {
         const val = row[checkIdx];
@@ -1463,7 +1552,11 @@
 
       // Limpiar resultados previos
       let resultDisplay = document.getElementById('resultDisplay');
-      if (resultDisplay) resultDisplay.style.display = 'none';
+      if (resultDisplay) {
+        resultDisplay.style.display = 'none';
+        const errorDetailsContainer = document.getElementById('errorDetailsContainer');
+        if (errorDetailsContainer) errorDetailsContainer.innerHTML = '';
+      }
 
       isRunning = true;
       actionSelectionContainer.style.display = 'none';
@@ -1472,92 +1565,100 @@
       executeGlobalActionButton.style.opacity = '0.5';
       cancelGlobalActionButton.style.display = 'none';
 
-      let successCount = 0;
-      let errorCount = 0;
-      let errorsDetails = [];
-      const total = rowsToProcess.length;
+      progressStatus.textContent = `Procesando lote (${rowsToProcess.length} registros)...`;
+      progressBar.style.width = '50%';
+      progressPercent.textContent = '50%';
 
-      for (let i = 0; i < total; i++) {
-        const row = rowsToProcess[i];
-        const originalIdx = row[currentHeaders.length + hiddenHeaders.length];
-        const rowName = row[3] + " " + row[2]; // NOMBRES APELLIDOS
+      try {
+        // Llamada única: pasamos los IDs ya filtrados desde el frontend
+        const idsToProcess = rowsToProcess.map(row => row[currentHeaders.length + hiddenHeaders.length]);
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .executeBulkActionByIDs(idsToProcess, type, currentUserAutor);
+        });
 
-        progressStatus.textContent = `Procesando (${i + 1}/${total}): ${rowName}`;
+        progressBar.style.width = '100%';
+        progressPercent.textContent = '100%';
+        progressStatus.textContent = 'Proceso completado.';
 
-        try {
-          // Llamada individual para cada fila
-          const result = await new Promise((resolve, reject) => {
-            google.script.run
-              .withSuccessHandler(resolve)
-              .withFailureHandler(reject)
-              .executeAction(originalIdx, type);
-          });
-
-          if (result.success) {
-            successCount++;
+        // Finalizar: mostrar resultados y boton Cerrar
+        isRunning = false;
+        resultDisplay = document.getElementById('resultDisplay');
+        resultDisplay.style.display = 'block';
+        
+        // El backend devuelve successCount y errors array (si refactorizamos executeBulkAction para devolver detalles)
+        // Por ahora usamos lo que ya tiene: count y message.
+        document.getElementById('successCountText').textContent = result.count || 0;
+        
+        if (result.success) {
+          document.getElementById('errorCountText').textContent = '0';
+          showMessage(result.message);
+        } else {
+          // Si falló o hubo errores parciales
+          if (result.errors && result.errors.length > 0) {
+            document.getElementById('errorCountText').textContent = result.errors.length;
+            let errorDetailsContainer = document.getElementById('errorDetailsContainer');
+            if (!errorDetailsContainer) {
+              errorDetailsContainer = document.createElement('div');
+              errorDetailsContainer.id = 'errorDetailsContainer';
+              errorDetailsContainer.style.marginTop = '10px';
+              errorDetailsContainer.style.maxHeight = '150px';
+              errorDetailsContainer.style.overflowY = 'auto';
+              errorDetailsContainer.style.color = '#b91c1c';
+              errorDetailsContainer.style.fontSize = '0.75rem';
+              errorDetailsContainer.style.borderTop = '1px solid #e2e8f0';
+              errorDetailsContainer.style.paddingTop = '5px';
+              resultDisplay.appendChild(errorDetailsContainer);
+            }
+            errorDetailsContainer.innerHTML = result.errors.map(err => `<div>${err}</div>`).join('');
           } else {
-            errorCount++;
-            errorsDetails.push("<b>" + rowName + ":</b> " + (result.message || "Error crítico desconocido"));
+            document.getElementById('errorCountText').textContent = '1';
+            showMessage(result.message, true);
           }
-        } catch (err) {
-          console.error(`Error en fila ${originalIdx}:`, err);
-          errorCount++;
-          errorsDetails.push("<b>" + rowName + ":</b> Excepción de red/Apps Script - " + (err.message || 'Desconocido'));
         }
 
-        // Actualizar barra de progreso
-        const percent = Math.round(((i + 1) / total) * 100);
-        progressBar.style.width = percent + '%';
-        progressPercent.textContent = percent + '%';
+      } catch (err) {
+        console.error('Error en proceso por lotes:', err);
+        isRunning = false;
+        resultDisplay.style.display = 'block';
+        document.getElementById('errorCountText').textContent = '1';
+        showMessage("Error de conexión: " + (err.message || 'Desconocido'), true);
       }
 
-      // Finalizar: mostrar resultados y boton Cerrar
-      isRunning = false;
-      resultDisplay = document.getElementById('resultDisplay');
-      document.getElementById('successCountText').textContent = successCount;
-      document.getElementById('errorCountText').textContent = errorCount;
-
-      // Mostrar lista de errores
-      let errorDetailsContainer = document.getElementById('errorDetailsContainer');
-      if (!errorDetailsContainer) {
-        errorDetailsContainer = document.createElement('div');
-        errorDetailsContainer.id = 'errorDetailsContainer';
-        errorDetailsContainer.style.marginTop = '10px';
-        errorDetailsContainer.style.maxHeight = '150px';
-        errorDetailsContainer.style.overflowY = 'auto';
-        errorDetailsContainer.style.color = '#b91c1c'; // Rojo más oscuro
-        errorDetailsContainer.style.fontSize = '0.75rem';
-        errorDetailsContainer.style.borderTop = '1px solid #e2e8f0';
-        errorDetailsContainer.style.paddingTop = '5px';
-        resultDisplay.appendChild(errorDetailsContainer);
-      }
-
-      if (errorsDetails.length > 0) {
-        errorDetailsContainer.innerHTML = '<strong>Detalle de Errores:</strong><br/>' + errorsDetails.join('<br/><br/>');
-        errorDetailsContainer.style.display = 'block';
-      } else {
-        errorDetailsContainer.style.display = 'none';
-      }
-
-      resultDisplay.style.display = 'block';
-
-      progressStatus.textContent = '¡Completado!';
-
-      // El botón "Cerrar" resetea el modal y cierra
-      cancelGlobalActionButton.textContent = 'Cerrar';
-      cancelGlobalActionButton.style.display = 'block';
-
-      // Recargar datos de la tabla
-      loadData();
+      // Cambiar botones al finalizar
+      executeGlobalActionButton.style.display = 'none';
+      const closeBtn = document.getElementById('cancelGlobalActionButton');
+      closeBtn.textContent = 'Cerrar';
+      closeBtn.style.display = 'block';
+      closeBtn.onclick = () => {
+        dataModal.style.display = 'none'; // cerrar modal principal si es necesario
+        globalActionModal.style.display = 'none';
+        loadData(); // Refrescar tabla al final
+      };
     };
 
-    loadData();
-    google.script.run.withSuccessHandler(r => { if (r.success) auxDataMap = r.data; }).getAuxData();
 
-    // Obtener rol del usuario actual para verificar permisos
+
+    loadData();
+    google.script.run.withSuccessHandler(r => { 
+      if (r.success) {
+        auxDataMap = r.data;
+        autoridadesConfig = r.data;
+        if (r.autores && r.autores.length > 0) {
+          CONFIG.SELECT_COLUMNS['AUTOR'] = ['', ...r.autores];
+        }
+      } 
+    }).getAuxData();
+
     google.script.run.withSuccessHandler(r => {
       currentUserRole = r.role;
-      console.log("Rol del usuario: " + currentUserRole);
+      currentUserAutor = r.autor; 
+      console.log("Sesión activa:", { rol: currentUserRole, autor: currentUserAutor });
+      if (!currentUserAutor && (currentUserRole === 'ADMIN' || currentUserRole === 'SUPERVISOR')) {
+        showMessage('⚠️ ATENCIÓN: No tienes asignado un CÓDIGO DE AUTOR. Tus acciones se guardarán sin tus iniciales. Solicita a un administrador que asigne tu código en la gestión de usuarios.', true);
+      }
     }).getUserRoleForFrontend();
 
     // Iniciar auto-sincronización

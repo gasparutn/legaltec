@@ -13,7 +13,9 @@ function notificaLocaciones1(rowData) {
             Logger.log(errorMessage);
             return { success: false, message: errorMessage };
         }
-        if (isChecked !== true && correoSecretario && nombreLocador && secretario) {
+        // El check ya se hizo o se bypassó en executeAction. 
+        // Solo validamos que tengamos los datos mínimos para el envío.
+        if (correoSecretario && nombreLocador && secretario) {
             let templateName = "htmlNotificaAlta";
             if (String(rowData['REQ'] || '').toLowerCase().includes('baja')) {
                 templateName = "htmlNotificaBaja";

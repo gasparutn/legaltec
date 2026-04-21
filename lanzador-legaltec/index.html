@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEGALTEC - CONTROL</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="https://img.icons8.com/isometric/50/law.png">
+    
+    <style>
+        body, html {
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            display: flex; justify-content: center; align-items: center;
+            background-color: #0f172a;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .loader-container { text-align: center; }
+        .loader {
+            width: 50px; height: 50px;
+            border: 3px solid rgba(139, 92, 246, 0.1);
+            border-top-color: #8b5cf6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .text { color: #94a3b8; font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+    <div class="loader-container">
+        <div class="loader"></div>
+        <div class="text">Iniciando Portal Legaltec</div>
+    </div>
+
+    <script>
+        // Redirección directa y limpia para evitar errores de iFrame
+        setTimeout(() => {
+            window.location.href = "https://script.google.com/macros/s/AKfycbwOVz8PNLKdtxDHkgTWyYVmdT2kIZizJYISeTQ7tZYzRSnFnj2kuETi7VMbS5lxrkp9/exec";
+        }, 600);
+    </script>
+</body>
+</html>

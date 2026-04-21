@@ -1,0 +1,131 @@
+<style>
+  :root {
+    --primary-bg: #0b1121;
+    --secondary-bg: #161e2e;
+    --modal-bg: #fdfbf7;
+    --modal-text: #2c3e50;
+    --accent-amber: #d97706;
+    --accent-gold: #f59e0b;
+    --accent-blue: #3b82f6;
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --glass-bg: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --table-bg: rgba(30, 41, 59, 0.7);
+    --header-bg: #0f172a;
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Animaciones Globales */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeInUp 0.5s ease-out forwards; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .elegant-spinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--accent-gold);
+    animation: spin 1s linear infinite;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    margin: 0; padding: 0;
+    background: radial-gradient(circle at top right, #1e293b, #0f172a);
+    background-attachment: fixed;
+    color: var(--text-primary);
+    overflow-x: hidden;
+  }
+
+  .header {
+    background: rgba(11, 17, 33, 0.85);
+    padding: 12px 20px;
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--glass-border);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .title {
+    font-size: 1.2em; font-weight: 900; margin: 0;
+    text-transform: uppercase; letter-spacing: 3px;
+    background: linear-gradient(to right, #ffffff, #94a3b8);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .controls { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 0; }
+  
+  /* Layout de filtros y shortcuts */
+  .secondary-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 25px;
+    margin-top: 15px;
+    padding: 10px 0;
+  }
+
+  .period-selector {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .period-label, .shortcuts-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent-gold);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .drive-shortcuts {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .shortcut-link {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .shortcut-link:hover {
+    color: var(--accent-gold);
+  }
+
+  .add-button {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white; border: none; padding: 8px 16px;
+    border-radius: 8px; cursor: pointer; font-size: 0.8em;
+    font-weight: 700; transition: all 0.2s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  }
+  .add-button:hover { transform: translateY(-1px); filter: brightness(1.1); }
+
+  select {
+    background: #1e293b;
+    color: white;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    outline: none;
+  }
+
+</style>

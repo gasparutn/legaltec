@@ -1,0 +1,260 @@
+<script>
+  /**
+   * Manejador para el botón de editar
+   */
+  function handleEditClick(idx) {
+    editingRowIdx = idx;
+    const modalTitle = document.getElementById('modalTitle');
+    const dataModal = document.getElementById('dataModal');
+    const btnRenovarContrato = document.getElementById('btnRenovarContrato');
+    
+    if (modalTitle) modalTitle.textContent = 'Editar Registro (ID: ' + idx + ')';
+    if (btnRenovarContrato) btnRenovarContrato.style.display = 'none';
+
+    updateSyncStatus('syncing', 'Cargando datos...');
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success && res.data.length > 0) {
+          const rowData = res.data[0];
+          // res.data[0] es un array: [...visible, '', ...hidden, ID]
+          const obj = {};
+          currentHeaders.forEach((h, i) => obj[h] = rowData[i]);
+          hiddenHeaders.forEach((h, i) => obj[h] = rowData[currentHeaders.length + 1 + i]);
+          
+          generateFormFields(obj);
+          showModal(dataModal);
+          updateSyncStatus('success');
+        } else {
+          showMessage('Error al recuperar datos: ' + (res.message || 'ID no encontrado'), true);
+          updateSyncStatus('error');
+        }
+      })
+      .withFailureHandler(err => {
+        showMessage('Fallo técnico: ' + err.message, true);
+        updateSyncStatus('error');
+      })
+      .getLatestDataByIDs([idx]);
+  }
+
+  /**
+   * Manejador para el botón de renovar
+   */
+  function handleRenovarClick(idx, rowData) {
+    if (confirm('¿Desea RENOVAR este contrato? Se creará una copia nueva con Fecha de Alta hoy y cuota reseteada a 1.')) {
+      updateSyncStatus('syncing', 'Renovando...');
+      google.script.run
+        .withSuccessHandler(r => {
+          if (r.success) {
+            showMessage(r.message);
+            loadData();
+          } else {
+            showMessage('Error: ' + r.message, true);
+            updateSyncStatus('error');
+          }
+        })
+        .withFailureHandler(err => {
+          showMessage('Error: ' + err.message, true);
+          updateSyncStatus('error');
+        })
+        .renovarContratoCD(idx);
+    }
+  }
+
+  /**
+   * Manejador para el botón de eliminar
+   */
+  function handleDeleteClick(idx) {
+    rowToDeleteIdx = idx;
+    const confirmModal = document.getElementById('confirmModal');
+    if (confirmModal) showModal(confirmModal);
+  }
+
+  /**
+   * Ejecución real de la eliminación despues de confirmar
+   */
+  function executeDeletion() {
+    if (rowToDeleteIdx === -1) return;
+    const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+    confirmDeleteButton.disabled = true;
+    confirmDeleteButton.textContent = 'Eliminando...';
+
+    google.script.run
+      .withSuccessHandler(r => {
+        confirmDeleteButton.disabled = false;
+        confirmDeleteButton.textContent = 'Eliminar';
+        if (r.success) {
+          showMessage(r.message);
+          closeAllModals();
+          loadData();
+        } else {
+          showMessage(r.message, true);
+        }
+      })
+      .withFailureHandler(err => {
+        confirmDeleteButton.disabled = false;
+        confirmDeleteButton.textContent = 'Eliminar';
+        showMessage(err.message, true);
+      })
+      .deleteRow(rowToDeleteIdx);
+  }
+
+  /**
+   * Previsualización de archivos (Contrato/Resolución)
+   */
+  function handlePreviewFile(rowData, tipo) {
+    const recordId = rowData[headers.length + hiddenHeaders.length]; // ID es el último elemento
+    updateSyncStatus('syncing', 'Generando previsualización...');
+    google.script.run
+      .withSuccessHandler(url => {
+        if (url && url.startsWith('http')) {
+          window.open(url, '_blank');
+          updateSyncStatus('success');
+        } else {
+          showMessage('Error: No se pudo obtener la URL de previsualización.', true);
+          updateSyncStatus('error');
+        }
+      })
+      .withFailureHandler(err => {
+        showMessage('Error: ' + err.message, true);
+        updateSyncStatus('error');
+      })
+      .getPreviewUrl(recordId, tipo);
+  }
+
+  /**
+   * Abrir modal de acciones masivas
+   */
+  function openGlobalActionModal() {
+    const rowsToProcess = originalData.filter(r => {
+      const checkIdx = currentHeaders.indexOf('CHECK');
+      return r[checkIdx] !== true; // Solo filas destildadas
+    });
+
+    if (rowsToProcess.length === 0) {
+      alert('No hay filas seleccionables (destildadas) para procesar.');
+      return;
+    }
+
+    const globalRowSelect = document.getElementById('globalRowSelect');
+    if (globalRowSelect) {
+      globalRowSelect.innerHTML = '<option value="all">-- Todas las visibles (' + rowsToProcess.length + ') --</option>';
+      rowsToProcess.forEach(r => {
+        const id = r[currentHeaders.indexOf('ID')];
+        const ape = r[currentHeaders.indexOf('APELLIDOS')];
+        const nom = r[currentHeaders.indexOf('NOMBRES')];
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = `ID ${id}: ${ape}, ${nom}`;
+        globalRowSelect.appendChild(opt);
+      });
+    }
+
+    const globalActionModal = document.getElementById('globalActionModal');
+    if (globalActionModal) showModal(globalActionModal);
+  }
+
+  /**
+   * Ejecutar acción global (Contratos, Resoluciones, Notas)
+   */
+  function executeGlobalAction() {
+    const action = document.getElementById('globalActionSelect').value;
+    const target = document.getElementById('globalRowSelect').value;
+    const executeBtn = document.getElementById('executeGlobalActionButton');
+
+    if (!action) { alert('Seleccione una acción.'); return; }
+
+    const rowsToProcess = originalData.filter(r => {
+      const checkIdx = currentHeaders.indexOf('CHECK');
+      const idIdx = currentHeaders.indexOf('ID');
+      if (r[checkIdx] === true) return false;
+      if (target === 'all') return true;
+      return String(r[idIdx]) === String(target);
+    });
+
+    if (rowsToProcess.length === 0) { alert('No hay filas para procesar.'); return; }
+
+    if (!confirm(`¿Ejecutar "${action}" para ${rowsToProcess.length} registro(s)?`)) return;
+
+    executeBtn.disabled = true;
+    executeBtn.textContent = 'Procesando...';
+    
+    // Mostrar progreso
+    const progressContainer = document.querySelector('.progress-container');
+    const progressBar = document.querySelector('.progress-bar');
+    const progressStatus = document.getElementById('progressStatus');
+    const resultDisplay = document.getElementById('resultDisplay');
+    const successCountText = document.getElementById('successCountText');
+    const errorCountText = document.getElementById('errorCountText');
+
+    if (progressContainer) progressContainer.style.display = 'block';
+    if (resultDisplay) resultDisplay.style.display = 'none';
+
+    let processed = 0;
+    let successCount = 0;
+    let errorCount = 0;
+    let errorsDetails = [];
+
+    const ids = rowsToProcess.map(r => r[currentHeaders.indexOf('ID')]);
+
+    function processNext() {
+      if (processed >= ids.length) {
+        finishGlobalAction(successCount, errorCount, errorsDetails);
+        return;
+      }
+
+      const currentId = ids[processed];
+      if (progressStatus) progressStatus.textContent = `Procesando ${processed + 1} de ${ids.length} (ID: ${currentId})...`;
+      
+      const pct = ((processed) / ids.length) * 100;
+      if (progressBar) progressBar.style.width = pct + '%';
+
+      let serverCall;
+      if (action === 'Generar Contratos') serverCall = google.script.run.generarContratoBulk([currentId]);
+      else if (action === 'Generar Resoluciones') serverCall = google.script.run.generarResolucionBulk([currentId]);
+      else if (action === 'Generar Notas') serverCall = google.script.run.generarNotasBulk([currentId]);
+
+      serverCall.withSuccessHandler(r => {
+        if (r.success) successCount++;
+        else { errorCount++; errorsDetails.push(`ID ${currentId}: ${r.message}`); }
+        processed++;
+        processNext();
+      }).withFailureHandler(err => {
+        errorCount++;
+        errorsDetails.push(`ID ${currentId}: Fallo técnico (${err.message})`);
+        processed++;
+        processNext();
+      });
+    }
+
+    processNext();
+  }
+
+  function finishGlobalAction(successCount, errorCount, errorsDetails) {
+    const executeBtn = document.getElementById('executeGlobalActionButton');
+    executeBtn.disabled = false;
+    executeBtn.textContent = 'Ejecutar';
+
+    const progressBar = document.querySelector('.progress-bar');
+    if (progressBar) progressBar.style.width = '100%';
+    
+    const resultDisplay = document.getElementById('resultDisplay');
+    document.getElementById('successCountText').textContent = successCount;
+    document.getElementById('errorCountText').textContent = errorCount;
+
+    const errorDetailsContainer = document.getElementById('errorDetailsContainer');
+    if (errorDetailsContainer) {
+      if (errorsDetails.length > 0) {
+        errorDetailsContainer.innerHTML = '<strong>Detalle de Errores:</strong><br/>' + errorsDetails.join('<br/><br/>');
+        errorDetailsContainer.style.display = 'block';
+      } else {
+        errorDetailsContainer.style.display = 'none';
+      }
+    }
+
+    if (resultDisplay) resultDisplay.style.display = 'block';
+    document.getElementById('progressStatus').textContent = '¡Completado!';
+    document.getElementById('cancelGlobalActionButton').textContent = 'Cerrar';
+
+    loadData();
+  }
+</script>
